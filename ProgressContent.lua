@@ -107,8 +107,14 @@ function addon.GetRenownCatalog()
                 lines[#lines + 1] = (fr and "Prochain niveau : " or "Next level: ") .. earned .. " / " .. threshold
             end
             if info.description and info.description ~= "" then lines[#lines + 1] = info.description end
+            local iconAtlas
+            if type(info.textureKit) == "string" and info.textureKit ~= "" and C_Texture and C_Texture.GetAtlasInfo then
+                local candidate = "majorfactions_icons_" .. info.textureKit .. "512"
+                if C_Texture.GetAtlasInfo(candidate) then iconAtlas = candidate end
+            end
             rows[#rows + 1] = { id = id, factionID = id, name = info.name, valueText = value, labelColor = color,
-                icon = "Interface\\Icons\\Achievement_Reputation_01", tooltipLines = lines, priority = info.uiPriority or 0, fitValue = true }
+                icon = "Interface\\Icons\\Achievement_Reputation_01", iconAtlas = iconAtlas, iconSize = iconAtlas and 20 or nil,
+                tooltipLines = lines, priority = info.uiPriority or 0, fitValue = true }
         end
     end
     table.sort(rows, function(a, b) return a.priority == b.priority and a.name < b.name or a.priority < b.priority end)

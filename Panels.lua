@@ -423,6 +423,10 @@ local function Render(panel)
         row.bar:SetShown(not compact and settings.showBars and (entry.maximum or 0) > 0)
         row.icon:SetTexture(entry.icon)
         row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        if entry.iconAtlas then
+            row.icon:SetTexCoord(0, 1, 0, 1)
+            row.icon:SetAtlas(entry.iconAtlas, false)
+        end
         DisableTextureSnapping(row.icon)
         row.icon:SetSize(Snap(16, pixel), Snap(16, pixel))
         row.icon:ClearAllPoints()
@@ -435,7 +439,8 @@ local function Render(panel)
         row.value:ClearAllPoints()
         row.value:SetPoint("RIGHT", -valueInset, 0)
         row.value:SetText(entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
-        local iconSpace = compact and entry.icon and not entry.moneyAmount and Snap(20, pixel) or 0
+        local compactIconSize = Snap(entry.iconSize or 14, pixel)
+        local iconSpace = compact and entry.icon and not entry.moneyAmount and compactIconSize + Snap(6, pixel) or 0
         local availableWidth = rowWidth - labelStart - valueInset - valueGap - iconSpace - 30
         local naturalWidth = row.value:GetUnboundedStringWidth()
         if entry.moneyAmount or entry.fitValue then
@@ -458,6 +463,7 @@ local function Render(panel)
         row.label:SetTextColor(labelColor[1], labelColor[2], labelColor[3])
         if compact and not entry.moneyAmount then row.value:SetTextColor(labelColor[1], labelColor[2], labelColor[3]) end
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
+        if compact and entry.iconSize then actualHeight = math.max(actualHeight, compactIconSize + Snap(4, pixel)) end
         if tracker then
             if entry.isQuestHeader then
                 renderedHeight = renderedHeight + Snap(questTracker and 4 or 8, pixel)
@@ -509,7 +515,7 @@ local function Render(panel)
         row:SetHeight(actualHeight)
         if compact then
             row.icon:ClearAllPoints()
-            row.icon:SetSize(Snap(14, pixel), Snap(14, pixel))
+            row.icon:SetSize(compactIconSize, compactIconSize)
             row.icon:SetPoint("RIGHT", row, "RIGHT", -Snap(valueInset + valueWidth + 4, pixel), 0)
             row.icon:SetShown(entry.icon ~= nil and not entry.moneyAmount)
         elseif not tracker then

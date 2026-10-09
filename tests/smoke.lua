@@ -34,7 +34,7 @@ function methods:GetFrameLevel() return self.level or 1 end
 function methods:SetShown(shown) self.shown = shown end
 function methods:Show() self.shown = true end
 function methods:Hide() self.shown = false end
-function methods:SetTexture(texture) self.texture = texture; return true end
+function methods:SetTexture(texture) self.texture = texture; self.atlas = nil; return true end
 function methods:SetText(text) self.text = text end
 function methods:SetFont(font, size) self.font, self.fontSize = font, size end
 function methods:GetStringWidth() return #(self.text or "") * 6 end
@@ -1144,3 +1144,52 @@ for _, content in ipairs({ "vault", "renown" }) do
     end
 end
 print("PASS: vault live slots/thresholds/reward levels, previous-period claim status, ordered category filtering, missing APIs/item cache, Midnight-only renown, max/locked factions, live events, editor/layout isolation, compact bounds and tooltips.")
+
+-- Blizzard faction emblems retain their full atlas and reset on row reuse.
+function methods:SetTexCoord(...) self.texCoords = { ... } end
+local setAtlas = methods.SetAtlas
+function methods:SetAtlas(atlas)
+    setAtlas(self, atlas)
+    -- Atlas regions occupy part of a texture sheet; preserve these native UVs.
+    self.texCoords = { 0.1, 0.3, 0.2, 0.4 }
+end
+C_Texture = { GetAtlasInfo = function(atlas)
+    if atlas == "majorfactions_icons_court512" or atlas == "majorfactions_icons_amani512" then return { width = 512, height = 512 } end
+end }
+factionData[1].textureKit = "court"
+factionData[2].textureKit = "amani"
+factionData[3].textureKit = "missing"
+settings.selections.renown = { 1, 2, 3, 0, 0, 0, 0, 0 }
+SetSetting(first, "content", "renown")
+assert(first.rows[1].data.iconAtlas == "majorfactions_icons_court512")
+assert(first.rows[2].icon.atlas == "majorfactions_icons_amani512" and not first.rows[3].data.iconAtlas)
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, scale in ipairs({ 0.7, 1.5 }) do
+                SetSetting(first, "scale", scale)
+                local row = first.rows[1]
+                assert(row.icon.atlas == "majorfactions_icons_court512" and row.icon.shown)
+                assert(row.icon.texCoords[1] == 0.1 and row.icon.texCoords[2] == 0.3 and row.icon.texCoords[3] == 0.2 and row.icon.texCoords[4] == 0.4, "Faction atlas UVs are overwritten with the entire texture sheet")
+                assert(row.icon.width > first.rows[3].icon.width and row.height >= row.icon.height)
+                local iconLeft = row.width + row.icon.point[4] - row.icon.width
+                assert(row.label.point[2] + row.label.width <= iconLeft, "Renown emblem overlaps label")
+                assert(row.value.width >= row.value:GetUnboundedStringWidth())
+            end
+        end
+    end
+end
+local atlasAPI = C_Texture
+C_Texture = nil
+persistedAddon.RefreshPanels()
+assert(not first.rows[1].data.iconAtlas and not first.rows[1].icon.atlas and first.rows[1].icon.texture == "Interface\\Icons\\Achievement_Reputation_01")
+C_Texture = atlasAPI
+persistedAddon.RefreshPanels()
+SetSetting(first, "content", "currencies")
+assert(not first.rows[1].icon.atlas and first.rows[1].icon.texCoords[1] == 0.08, "Faction atlas leaks into currency row")
+SetSetting(first, "content", "renown")
+assert(first.rows[1].icon.atlas == "majorfactions_icons_court512")
+print("PASS: faction-specific Blizzard emblems, validated atlas fallback, uncropped larger logos, compact spacing across themes/widths/fonts/scales and texture reset on row reuse.")
