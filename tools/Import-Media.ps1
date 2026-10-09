@@ -1,4 +1,4 @@
-# Import the installed EllesmereUI Pixels assets for local use.
+# Import EllesmereUI Pixels and, when installed, AyijeUI artwork for local use.
 [CmdletBinding()]
 param(
     [string]$AddOnsPath = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
@@ -51,3 +51,7 @@ $manifest = foreach ($relativePath in $files) {
 Copy-Item -LiteralPath $licensePath -Destination (Join-Path $destinationPath 'LICENSE-source.txt')
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destinationPath 'manifest.json') -Encoding UTF8
 Write-Output "Imported and verified $($files.Count) EllesmereUI Pixels assets."
+
+if (Test-Path -LiteralPath (Join-Path $AddOnsPath 'AyijeUI') -PathType Container) {
+    & (Join-Path $PSScriptRoot 'Import-AyijeMedia.ps1') -AddOnsPath $AddOnsPath
+}

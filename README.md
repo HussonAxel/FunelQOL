@@ -42,7 +42,7 @@ New Lua files must be listed in `FunelQOL.toc` in their required load order. Eac
 
 `Media.lua` exposes locally imported EllesmereUI **Pixels** artwork through `addon.media`: three bar textures, two border styles with horizontal/vertical separators, and five shield textures. All paths point into FunelQOL, so EllesmereUI is not required at runtime after import.
 
-To import or refresh from an installed EllesmereUI, run PowerShell from this repository:
+To import or refresh from an installed EllesmereUI and, when present, AyijeUI, run PowerShell from this repository:
 
 ```powershell
 .\tools\Import-Media.ps1
@@ -60,7 +60,11 @@ frame:SetBackdrop({ edgeFile = addon.media.borders.pixels.edgeFile, edgeSize = 1
 
 The imported TGA files retain their original names and bytes. `Media/Ellesmere/manifest.json` records their SHA256 hashes, and `LICENSE-source.txt` preserves the source license. Source: EllesmereUI 9.4; its changelog credits the PapaPixels collaboration for Pixels artwork. The supplied license reserves all rights and does not provide a redistribution grant. Imported media is excluded from Git and the public repository. A fresh clone must import its own local assets before using these paths.
 
-AyijeUI was not found in the installed AddOns folder or either local retail backup at import time. No AyijeUI artwork is included.
+AyijeUI 1.04 artwork is available locally through `addon.media.ayije`: 8 statusbar textures, 2 borders (with their original edge size of 16), 7 general textures, and 11 glyphs. Original filenames and folder structure are preserved under `Media/AyijeUI/`, alongside a SHA256 manifest and the source license. AyijeUI's supplied license reserves all rights and explicitly withholds copying and redistribution permissions; its imported files are excluded from the public repository as well. Fonts, logos, and addon code are not imported.
+
+For example, use `bar:SetStatusBarTexture(addon.media.ayije.statusbars.Ayije_light)` or `frame:SetBackdrop(addon.media.ayije.borders.Ayije_Thin)` on a frame created with `BackdropTemplate`. General textures and glyphs can be assigned with `texture:SetTexture(addon.media.ayije.textures.portraitBorder)` or `texture:SetTexture(addon.media.ayije.glyphs.pixelClose)`.
+
+To import AyijeUI alone, run `.\tools\Import-AyijeMedia.ps1`. The catalog lists the assets from the versions above; review it when updating the source addons. Importing media does not enable any UI skin automatically.
 
 ## References
 
