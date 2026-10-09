@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.6.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.7.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -162,3 +162,9 @@ Quest references: [Blizzard quest API documentation](https://github.com/Gethe/wo
 Map-event reference: [Blizzard area POI API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/AreaPoiInfoDocumentation.lua).
 
 Delve references: [Blizzard delve map provider](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_SharedMapDataProviders/DelveEntranceDataProvider.lua), [map legend atlas names](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/MapLegendFrame.lua), [UI widget API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/UIWidgetManagerDocumentation.lua), and the story-achievement game data on Wowhead ([61724](https://www.wowhead.com/achievement=61724), [61725](https://www.wowhead.com/achievement=61725), [61726](https://www.wowhead.com/achievement=61726), [61727](https://www.wowhead.com/achievement=61727), [61728](https://www.wowhead.com/achievement=61728), [61729](https://www.wowhead.com/achievement=61729), [61730](https://www.wowhead.com/achievement=61730), [61731](https://www.wowhead.com/achievement=61731), [61732](https://www.wowhead.com/achievement=61732), [61733](https://www.wowhead.com/achievement=61733), [63436](https://www.wowhead.com/achievement=63436), [63437](https://www.wowhead.com/achievement=63437)).
+
+## Compact data trackers
+
+Currencies, professions, selected talents and custom menus now use the supplied compact reference: a separate centered white header, a collapse arrow on the left, one dark body with thin row separators, uppercase labels and right-aligned values. Icons sit immediately before values; money uses its inline coins without a duplicate icon. Currency label/value colors use Blizzard's currency quality; professions are green, talents violet and custom text white. Currency quality comes from [Blizzard's CurrencyInfo structure](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/CurrencyInfoDocumentation.lua).
+
+Default panel titles follow the selected content; personalized titles are retained. Width, font size, row height, scale, opacity and border theme remain configurable. Compact rows omit progress fills. Quest and delve trackers retain their detailed section presentation. The changes apply after `/reload` to existing panels as well as new ones.

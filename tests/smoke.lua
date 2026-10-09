@@ -634,7 +634,7 @@ for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
                 assert(row.value.width >= naturalWidth, "Money value is constrained below its inline texture width")
                 assert(row.value.wordWrap == false, "Money can wrap into the border")
                 assert(row.value.point[2] <= -8, "Money needs an inset for the final coin")
-                assert(row.label.width + naturalWidth + 40 <= first.width + 1, "Money overlaps its label")
+                assert(row.label.width + naturalWidth + 22 <= row.width + 1, "Money overlaps its label")
                 for tag in row.value.text:gmatch("|T([^|]+)|t") do
                     local height, size, x, y = tag:match("^[^:]+:(%d+):(%d+):(-?%d+):(-?%d+)$")
                     assert(tonumber(x) == 0 and tonumber(y) == 0, "Inline coin protrudes outside its measured bounds")
@@ -750,7 +750,7 @@ SetSetting(first, "questTracker", false)
 assert(not first.background.shown and first.questGroups[1].shown)
 SetSetting(first, "questTracker", true)
 SetSetting(first, "content", "currencies")
-assert(not first.background.shown and first.rows[1].border.shown)
+assert(not first.background.shown and first.body.shown and not first.rows[1].border.shown)
 for _, row in ipairs(first.rows) do
     if row.shown then
         assert(not row.trackerLine or not row.trackerLine.shown)
@@ -923,3 +923,55 @@ assert(first.rows[1].data.name == persistedAddon.panelText.delvesEmpty and not f
 SetSetting(first, "content", "currencies")
 assert(not first.background.shown and not first.trackerTabs and first.rows[1].value.textColor[1] == 1)
 print("PASS: all 44 grades across 12 delves, localized names and criteria, standard/bountiful/unknown icons, primary-map deduplication, unknown/hidden/conflicting stories, widget and rotation refresh, cache isolation, independent delve/quest panels and settings, all themes/widths/fonts/scales, automatic editor, folding/layout copy, scrolling and combat guards.")
+
+-- Compact data trackers: one body, shared separators and value-side icons.
+ITEM_QUALITY_COLORS = { [4] = { r = 0.64, g = 0.21, b = 0.93 } }
+local baseCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
+C_CurrencyInfo.GetCurrencyInfo = function(id)
+    local info = baseCurrencyInfo(id)
+    if info then info.quality = 4 end
+    return info
+end
+settings = FunelQOLCharDB.layouts[LEM.active].panel1
+settings.selections.currencies = { 2, -1, 3, 0, 0, 0, 0, 0 }
+settings.collapsed = false
+settings.title = first.definition.title
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 260, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, scale in ipairs({ 0.7, 1.5 }) do
+                SetSetting(first, "scale", scale)
+                assert(first.body.shown and first.header.border.shown)
+                assert(first.title.text == "MONNAIES" and first.arrow.point[1] == "LEFT")
+                local row = first.rows[1]
+                assert(not row.border.shown and not row.background.shown and not row.bar.shown)
+                assert(row.separator.shown and not first.rows[3].separator.shown)
+                assert(row.label.text == "TOKEN" and row.label.textColor[1] == 0.64 and row.value.textColor[3] == 0.93)
+                assert(row.icon.shown and row.icon.point[1] == "RIGHT" and row.width < first.width)
+                local iconLeft = row.width + row.icon.point[4] - row.icon.width
+                assert(row.label.point[2] + row.label.width <= iconLeft, "Compact label overlaps value icon")
+                assert(row.height >= fontSize + 7)
+                assert(not first.rows[2].icon.shown, "Money duplicates its coin icons")
+                local offset = first.rows[2].point[3] - row.point[3]
+                assert(math.abs(offset + row.height) < 0.01, "Compact rows have external gaps")
+            end
+        end
+    end
+end
+SetSetting(first, "collapsed", true)
+assert(not first.body.shown and not first.viewport.shown and first.header.border.shown)
+SetSetting(first, "collapsed", false)
+assert(first.body.shown and first.viewport.shown)
+persistedAddon.SetPanelTitle(1, "My resources")
+assert(first.title.text == "MY RESOURCES")
+for _, kind in ipairs({ "professions", "talents", "custom" }) do
+    SetSetting(first, "content", kind)
+    assert(first.body.shown and not first.rows[1].border.shown)
+end
+SetSetting(first, "content", "preview")
+assert(not first.body.shown and first.rows[1].border.shown and not first.rows[1].separator.shown)
+assert(first.rows[1].icon.point[1] == "TOPLEFT")
+print("PASS: compact data trackers, shared body and separators, automatic/custom headers, rarity colors, icons beside values, coin reuse, collapse and renderer switching across themes, widths, fonts and scales.")

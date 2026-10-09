@@ -99,8 +99,10 @@ local function Currency(id)
     local info = C_CurrencyInfo.GetCurrencyInfo(id)
     if not info or not info.name or info.name == "" then return nil end
     local maximum = not info.useTotalEarnedForMaxQty and info.maxQuantity or 0
+    local rarity = ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[info.quality]
+    local color = rarity and { rarity.r, rarity.g, rarity.b }
     return { name = info.name, icon = info.iconFileID, value = info.quantity, maximum = maximum,
-        currencyID = id, valueText = tostring(info.quantity) .. (maximum > 0 and " / " .. maximum or ""), description = info.description }
+        currencyID = id, compactColor = color, valueText = tostring(info.quantity) .. (maximum > 0 and " / " .. maximum or ""), description = info.description }
 end
 
 function addon.GetMoneyText(amount, fontSize)

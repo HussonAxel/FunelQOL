@@ -83,6 +83,8 @@ local function DisableTextureSnapping(texture)
 end
 
 local defaultBorderColor = { 0.38, 0.35, 0.29, 1 }
+local compactBorderColor = { 0.3, 0.3, 0.3, 1 }
+local compactColors = { currencies = { 0.15, 0.8, 1 }, professions = { 0.3, 1, 0.3 }, talents = { 0.75, 0.35, 1 }, custom = { 1, 1, 1 } }
 local function PaintBorder(frame)
     local color = frame.normalBorderColor or defaultBorderColor
     if frame.isHovered then
@@ -305,13 +307,16 @@ local function Render(panel)
     local questTracker = settings.content == "quests" and settings.questReadable and settings.questTracker
     local delves = settings.content == "delves"
     local tracker = questTracker or delves
-    local headerHeight = Snap(tracker and 34 or 26, pixel)
+    local compact = settings.content ~= "preview" and settings.content ~= "quests" and not delves
+    local headerHeight = Snap(tracker and 34 or compact and 24 or 26, pixel)
     -- Alpha >= 64 starts at texel 11 (Ayije) / 12 (Pixels), in the 2..29
     -- sampled cell. Leave room for each texture's exterior ink on both surfaces.
     local outerInk = style.centered and math.max(0, Snap(style.edgeSize / 2, pixel) - style.edgeSize * style.inkInset) or 0
     local gap = math.ceil((3 + outerInk * 2) / pixel - 0.001) * pixel
     local contentTop = headerHeight + (tracker and 0 or gap)
-    local rowHeight = Snap(settings.rowHeight, pixel)
+    local rowHeight = Snap(compact and math.max(settings.rowHeight, settings.fontSize + 8) or settings.rowHeight, pixel)
+    local rowInset = compact and Snap(4, pixel) or 0
+    local rowWidth = width - rowInset * 2
     panel:SetWidth(width)
     panel.header:SetHeight(headerHeight)
     local clipPadding = Snap(8, pixel)
@@ -319,19 +324,35 @@ local function Render(panel)
     panel.viewport:ClearAllPoints()
     panel.viewport:SetPoint("TOPLEFT", -clipPadding, -contentTop + clipPadding - questInset)
     panel.viewport:SetPoint("TOPRIGHT", clipPadding, -contentTop + clipPadding - questInset)
-    SetBackdrop(panel.header, style, settings.opacity, pixel)
+    SetBackdrop(panel.header, style, settings.opacity, pixel, nil, compact and compactBorderColor or nil)
+    if compact then
+        SetBackdrop(panel.body, style, settings.opacity, pixel, nil, compactBorderColor)
+        panel.body:ClearAllPoints()
+        panel.body:SetPoint("TOPLEFT", 0, -contentTop)
+        panel.body:SetPoint("BOTTOMRIGHT", 0, 0)
+    end
+    panel.body:SetShown(compact and not settings.collapsed)
     if tracker then SetBackdrop(panel, style, settings.opacity, pixel) end
     if panel.background then panel.background:SetShown(tracker); panel.border:SetShown(tracker) end
     panel.header.background:SetShown(not tracker)
     panel.header.border:SetShown(not tracker)
     panel.title:ClearAllPoints()
-    panel.title:SetPoint(tracker and "LEFT" or "CENTER", tracker and Snap(12, pixel) or -8, 0)
-    panel.title:SetText(tracker and settings.title == panel.definition.title and (delves and text.delves or text.trackerTitle) or settings.title)
+    panel.title:SetPoint(tracker and "LEFT" or "CENTER", tracker and Snap(12, pixel) or compact and 0 or -8, 0)
+    local title = settings.title
+    if settings.title == panel.definition.title then
+        if tracker then title = delves and text.delves or text.trackerTitle
+        elseif compact then
+            for _, kind in ipairs(addon.contentTypes) do if kind.value == settings.content then title = kind.text; break end end
+        end
+    end
+    panel.title:SetText(compact and string.upper(title) or title)
     panel.title:SetWidth(width - Snap(40, pixel))
     panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (tracker and 3 or 0), tracker and "" or "OUTLINE")
-    panel.title:SetTextColor(1, tracker and 1 or 0.82, tracker and 1 or 0)
+    panel.title:SetTextColor(1, (tracker or compact) and 1 or 0.82, (tracker or compact) and 1 or 0)
     panel.editModeName = "FunelQOL · " .. settings.title
-    panel.arrow:SetText(settings.collapsed and "+" or "-")
+    panel.arrow:ClearAllPoints()
+    panel.arrow:SetPoint(compact and "LEFT" or "RIGHT", compact and Snap(5, pixel) or -9, 0)
+    panel.arrow:SetText(compact and ("|TInterface\\Buttons\\UI-ScrollBar-Scroll" .. (settings.collapsed and "Up" or "Down") .. "Button-Up:16:16:0:0|t") or settings.collapsed and "+" or "-")
     local data = delves and addon.GetDelveRows(settings) or tracker and addon.GetTrackerRows(settings) or addon.GetPanelRows(settings)
     local renderedHeight = 0
     local readable = tracker or settings.content == "quests" and settings.questReadable
@@ -369,12 +390,19 @@ local function Render(panel)
             currentGroup:Show()
         end
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", clipPadding, -clipPadding - renderedHeight)
-        row:SetWidth(width)
+        row:SetPoint("TOPLEFT", clipPadding + rowInset, -clipPadding - renderedHeight)
+        row:SetWidth(rowWidth)
         row:SetHeight(rowHeight)
         SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel(), entry.borderColor)
-        row.background:SetShown(not readable)
-        row.border:SetShown(not readable)
+        row.background:SetShown(not readable and not compact)
+        row.border:SetShown(not readable and not compact)
+        if not row.separator then row.separator = row:CreateTexture(nil, "BACKGROUND") end
+        row.separator:SetShown(compact and index < #data)
+        row.separator:ClearAllPoints()
+        row.separator:SetPoint("BOTTOMLEFT", 0, 0)
+        row.separator:SetPoint("BOTTOMRIGHT", 0, 0)
+        row.separator:SetHeight(pixel)
+        row.separator:SetColorTexture(0.2, 0.2, 0.2, 0.7)
         row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.value:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.value:SetTextColor(1, 1, 1)
@@ -387,7 +415,7 @@ local function Render(panel)
         row.bar:SetPoint("BOTTOMRIGHT", -padding, padding)
         row.bar:SetMinMaxValues(0, math.max(1, entry.maximum or 0))
         row.bar:SetValue(math.min(entry.value or 0, math.max(1, entry.maximum or 0)))
-        row.bar:SetShown(settings.showBars and (entry.maximum or 0) > 0)
+        row.bar:SetShown(not compact and settings.showBars and (entry.maximum or 0) > 0)
         row.icon:SetTexture(entry.icon)
         row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         DisableTextureSnapping(row.icon)
@@ -396,13 +424,14 @@ local function Render(panel)
         row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((rowHeight - Snap(16, pixel)) / 2, pixel))
         row.icon:SetShown(entry.icon ~= nil)
         row.label:ClearAllPoints()
-        row.label:SetPoint("LEFT", Snap(entry.icon and 24 or 6, pixel), 0)
-        local labelStart = Snap(entry.icon and 24 or 6, pixel)
+        row.label:SetPoint("LEFT", Snap(not compact and entry.icon and 24 or 6, pixel), 0)
+        local labelStart = Snap(not compact and entry.icon and 24 or 6, pixel)
         local valueInset, valueGap = Snap(8, pixel), Snap(8, pixel)
         row.value:ClearAllPoints()
         row.value:SetPoint("RIGHT", -valueInset, 0)
         row.value:SetText(entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
-        local availableWidth = width - labelStart - valueInset - valueGap - 30
+        local iconSpace = compact and entry.icon and not entry.moneyAmount and Snap(20, pixel) or 0
+        local availableWidth = rowWidth - labelStart - valueInset - valueGap - iconSpace - 30
         local naturalWidth = row.value:GetUnboundedStringWidth()
         if entry.moneyAmount then
             -- Give all denominations room before shortening the label. On narrow
@@ -415,13 +444,14 @@ local function Render(panel)
                 naturalWidth = row.value:GetUnboundedStringWidth()
             end
         end
-        local valueWidth = math.ceil(math.min(entry.moneyAmount and availableWidth or width * 0.48, naturalWidth) / pixel) * pixel
+        local valueWidth = math.ceil(math.min(entry.moneyAmount and availableWidth or rowWidth * 0.48, naturalWidth) / pixel) * pixel
         row.value:SetWidth(valueWidth)
-        row.label:SetWidth(math.max(30, width - labelStart - valueInset - valueGap - valueWidth))
+        row.label:SetWidth(math.max(30, rowWidth - labelStart - valueInset - valueGap - valueWidth - iconSpace))
         row.label:SetWordWrap(entry.wrap or false)
-        row.label:SetText(entry.name)
-        local labelColor = entry.labelColor or { 1, 0.82, 0 }
+        row.label:SetText(compact and string.upper(entry.name) or entry.name)
+        local labelColor = entry.labelColor or compact and (entry.compactColor or (entry.moneyAmount and { 1, 0.82, 0 } or compactColors[settings.content])) or { 1, 0.82, 0 }
         row.label:SetTextColor(labelColor[1], labelColor[2], labelColor[3])
+        if compact and not entry.moneyAmount then row.value:SetTextColor(labelColor[1], labelColor[2], labelColor[3]) end
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
         if tracker then
             if entry.isQuestHeader then
@@ -472,11 +502,16 @@ local function Render(panel)
             end
         end
         row:SetHeight(actualHeight)
-        if not tracker then
+        if compact then
+            row.icon:ClearAllPoints()
+            row.icon:SetSize(Snap(14, pixel), Snap(14, pixel))
+            row.icon:SetPoint("RIGHT", row, "RIGHT", -Snap(valueInset + valueWidth + 4, pixel), 0)
+            row.icon:SetShown(entry.icon ~= nil and not entry.moneyAmount)
+        elseif not tracker then
             row.icon:ClearAllPoints()
             row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((actualHeight - Snap(16, pixel)) / 2, pixel))
         end
-        renderedHeight = renderedHeight + actualHeight + (readable and Snap(2, pixel) or gap)
+        renderedHeight = renderedHeight + actualHeight + (compact and 0 or readable and Snap(2, pixel) or gap)
         row:Show()
     end
     FinishGroup()
@@ -567,6 +602,7 @@ local function AddSettings(panel)
             hidden = function(layoutName)
                 local settings = Settings(id, layoutName)
                 if key == "rowCount" then return settings.content ~= "preview" end
+                if key == "showBars" then return settings.content ~= "preview" and settings.content ~= "quests" and settings.content ~= "delves" end
                 if key == "delvesBountifulOnly" or key == "delvesSort" or key == "delvesHeight" then return settings.content ~= "delves" end
                 if key == "questTracker" then return settings.content ~= "quests" or not settings.questReadable end
                 if key == "questEvents" then return settings.content ~= "quests" or not settings.questReadable or not settings.questTracker end
@@ -631,6 +667,9 @@ function addon.InitializePanels()
         end)
         panel.scrollHint = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         panel.header = CreateFrame("Button", nil, panel, "BackdropTemplate")
+        panel.body = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+        panel.body:EnableMouse(false)
+        panel.body:SetFrameLevel(panel:GetFrameLevel())
         panel.header:SetPoint("TOPLEFT")
         panel.header:SetPoint("TOPRIGHT")
         panel.header:SetHeight(26)
@@ -651,7 +690,8 @@ function addon.InitializePanels()
         panel.header:SetScript("OnLeave", function()
             local settings = Settings(definition.id)
             local tracker = settings.content == "delves" or settings.content == "quests" and settings.questReadable and settings.questTracker
-            panel.title:SetTextColor(1, tracker and 1 or 0.82, tracker and 1 or 0)
+            local compact = settings.content ~= "preview" and settings.content ~= "quests" and settings.content ~= "delves"
+            panel.title:SetTextColor(1, (tracker or compact) and 1 or 0.82, (tracker or compact) and 1 or 0)
         end)
         panels[#panels + 1] = panel
         local default = { point = "TOPRIGHT", x = definition.x, y = definition.y }
