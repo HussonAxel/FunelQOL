@@ -37,7 +37,7 @@ local function Settings(id, layoutName)
         title = definition.title, width = 260, scale = 1, enabled = true,
         collapsed = false, style = "blizzard", opacity = 0.94,
         fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
-        questAuto = true, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
+        questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -54,6 +54,7 @@ local function Settings(id, layoutName)
     settings.fontSize = math.floor(math.max(10, math.min(18, settings.fontSize)))
     settings.rowHeight = math.floor(math.max(22, math.min(34, settings.rowHeight)))
     settings.rowCount = math.floor(math.max(1, math.min(8, settings.rowCount)))
+    settings.questHeight = math.floor(math.max(150, math.min(800, settings.questHeight)))
     settings.questLimit = math.floor(math.max(1, math.min(8, settings.questLimit)))
     return settings
 end
@@ -157,7 +158,7 @@ local function CreateRow(panel)
     end)
     row:SetScript("OnClick", function(self)
         if not editing and self.data.questID and not InCombatLockdown() then
-            QuestMapFrame_OpenToQuestDetails(self.data.questID)
+            if self.data.autoComplete and ShowQuestComplete then ShowQuestComplete(self.data.questID) else QuestMapFrame_OpenToQuestDetails(self.data.questID) end
         end
     end)
     row:SetScript("OnLeave", function(self)
@@ -183,9 +184,11 @@ local function Render(panel)
     local rowHeight = Snap(settings.rowHeight, pixel)
     panel:SetWidth(width)
     panel.header:SetHeight(headerHeight)
-    panel.content:ClearAllPoints()
-    panel.content:SetPoint("TOPLEFT", 0, -contentTop)
-    panel.content:SetPoint("TOPRIGHT", 0, -contentTop)
+    local clipPadding = Snap(8, pixel)
+    local questInset = settings.content == "quests" and clipPadding or 0
+    panel.viewport:ClearAllPoints()
+    panel.viewport:SetPoint("TOPLEFT", -clipPadding, -contentTop + clipPadding - questInset)
+    panel.viewport:SetPoint("TOPRIGHT", clipPadding, -contentTop + clipPadding - questInset)
     SetBackdrop(panel.header, style, settings.opacity, pixel)
     panel.title:SetText(settings.title)
     panel.title:SetWidth(width - Snap(40, pixel))
@@ -199,7 +202,7 @@ local function Render(panel)
         if not row then row = CreateRow(panel); panel.rows[index] = row end
         row.data = entry
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, -renderedHeight)
+        row:SetPoint("TOPLEFT", clipPadding, -clipPadding - renderedHeight)
         row:SetWidth(width)
         row:SetHeight(rowHeight)
         SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel(), entry.borderColor)
@@ -229,6 +232,8 @@ local function Render(panel)
         row.label:SetWidth(math.max(30, settings.width - valueWidth - (entry.icon and 36 or 18)))
         row.label:SetWordWrap(entry.wrap or false)
         row.label:SetText(entry.name)
+        local labelColor = entry.labelColor or { 1, 0.82, 0 }
+        row.label:SetTextColor(labelColor[1], labelColor[2], labelColor[3])
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
         row:SetHeight(actualHeight)
         row.icon:ClearAllPoints()
@@ -237,8 +242,18 @@ local function Render(panel)
         row:Show()
     end
     for index = #data + 1, #panel.rows do panel.rows[index]:Hide() end
+    local visibleHeight = settings.content == "quests" and math.min(renderedHeight, Snap(settings.questHeight, pixel)) or renderedHeight
+    panel.content:SetSize(width + clipPadding * 2, renderedHeight + clipPadding * 2)
+    panel.viewport:SetHeight(visibleHeight + clipPadding * 2)
+    panel.scrollMaximum = math.max(0, renderedHeight - visibleHeight)
+    panel.viewport:SetVerticalScroll(math.min(panel.viewport:GetVerticalScroll(), panel.scrollMaximum))
+    panel.scrollHint:ClearAllPoints()
+    panel.scrollHint:SetPoint("TOP", panel, "TOP", 0, -contentTop - visibleHeight - clipPadding - questInset)
+    panel.scrollHint:SetText(text.questScrollHint)
+    panel.scrollHint:SetShown(not settings.collapsed and panel.scrollMaximum > 0)
     panel.content:SetShown(not settings.collapsed)
-    panel:SetHeight(settings.collapsed and headerHeight or (contentTop + renderedHeight))
+    panel.viewport:SetShown(not settings.collapsed)
+    panel:SetHeight(settings.collapsed and headerHeight or (contentTop + visibleHeight + questInset + (panel.scrollMaximum > 0 and Snap(22, pixel) or 0)))
     -- Rebuild from the saved anchor before snapping the visible top-left edge.
     -- GetLeft/GetTop are expressed in the frame's own scaled coordinates.
     panel:ClearAllPoints()
@@ -253,6 +268,7 @@ local function Render(panel)
 end
 
 function addon.RefreshPanels()
+    addon.questHasTimers = false
     for _, panel in ipairs(panels) do Render(panel) end
 end
 
@@ -280,6 +296,8 @@ local function AddSettings(panel)
     for _, spec in ipairs({
         { key = "content", label = text.content, kind = LEM.SettingType.Dropdown, default = "preview" },
         { key = "questAuto", label = text.questAuto, kind = LEM.SettingType.Checkbox, default = true },
+        { key = "questAll", label = text.questAll, kind = LEM.SettingType.Checkbox, default = true },
+        { key = "questHeight", label = text.questHeight, kind = LEM.SettingType.Slider, default = 400, min = 150, max = 800, step = 25 },
         { key = "questLimit", label = text.questLimit, kind = LEM.SettingType.Slider, default = 3, min = 1, max = 8, step = 1 },
         { key = "questDetails", label = text.questDetails, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questColors", label = text.questColors, kind = LEM.SettingType.Checkbox, default = true },
@@ -302,8 +320,9 @@ local function AddSettings(panel)
             hidden = function(layoutName)
                 local settings = Settings(id, layoutName)
                 if key == "rowCount" then return settings.content ~= "preview" end
-                if key == "questAuto" or key == "questObjectives" or key == "questDetails" or key == "questColors" then return settings.content ~= "quests" end
-                if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto end
+                if key == "questAuto" or key == "questObjectives" or key == "questDetails" or key == "questColors" or key == "questHeight" then return settings.content ~= "quests" end
+                if key == "questAll" then return settings.content ~= "quests" or not settings.questAuto end
+                if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto or settings.questAll end
                 return false
             end,
             values = key == "content" and addon.contentTypes or key == "style" and { { text = "Blizzard", value = "blizzard" }, { text = "Ayije", value = "ayije" }, { text = "Pixels", value = "pixels" } } or nil,
@@ -352,10 +371,15 @@ function addon.InitializePanels()
         panel:SetClampedToScreen(true)
         panel:SetFrameStrata("MEDIUM")
         panel:SetSize(260, 26)
-        panel.content = CreateFrame("Frame", nil, panel)
-        panel.content:SetPoint("TOPLEFT", 0, -29)
-        panel.content:SetPoint("TOPRIGHT", 0, -29)
-        panel.content:SetHeight(1)
+        panel.viewport = CreateFrame("ScrollFrame", nil, panel)
+        panel.content = CreateFrame("Frame", nil, panel.viewport)
+        panel.content:SetSize(260, 1)
+        panel.viewport:SetScrollChild(panel.content)
+        panel.viewport:EnableMouseWheel(true)
+        panel.viewport:SetScript("OnMouseWheel", function(self, delta)
+            self:SetVerticalScroll(math.max(0, math.min(panel.scrollMaximum or 0, self:GetVerticalScroll() - Snap(delta * 40, PixelUnit(self)))))
+        end)
+        panel.scrollHint = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         panel.header = CreateFrame("Button", nil, panel, "BackdropTemplate")
         panel.header:SetPoint("TOPLEFT")
         panel.header:SetPoint("TOPRIGHT")
@@ -389,10 +413,16 @@ function addon.InitializePanels()
     local events = CreateFrame("Frame")
     events:RegisterEvent("UI_SCALE_CHANGED")
     events:RegisterEvent("DISPLAY_SIZE_CHANGED")
-    for _, event in ipairs({ "PLAYER_MONEY", "CURRENCY_DISPLAY_UPDATE", "SKILL_LINES_CHANGED", "TRADE_SKILL_LIST_UPDATE", "TRAIT_CONFIG_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "SPELLS_CHANGED", "QUEST_LOG_UPDATE", "QUEST_WATCH_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_DATA_LOAD_RESULT", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN" }) do
+    for _, event in ipairs({ "PLAYER_MONEY", "CURRENCY_DISPLAY_UPDATE", "SKILL_LINES_CHANGED", "TRADE_SKILL_LIST_UPDATE", "TRAIT_CONFIG_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "SPELLS_CHANGED", "QUEST_LOG_UPDATE", "QUEST_WATCH_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_DATA_LOAD_RESULT", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN", "SUPER_TRACKING_CHANGED", "SUPER_TRACKING_PATH_UPDATED", "QUEST_POI_UPDATE" }) do
         events:RegisterEvent(event)
     end
     events:SetScript("OnEvent", addon.RefreshPanels)
+    local elapsed = 0
+    events:SetScript("OnUpdate", function(_, delta)
+        if not addon.questHasTimers then elapsed = 0; return end
+        elapsed = elapsed + delta
+        if elapsed >= 1 then elapsed = 0; addon.RefreshPanels() end
+    end)
     -- UIParent:SetScale can be called directly by UI addons without a CVar event.
     hooksecurefunc(UIParent, "SetScale", addon.RefreshPanels)
 end

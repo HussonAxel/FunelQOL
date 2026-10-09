@@ -2,6 +2,11 @@ local _, addon = ...
 local text = addon.panelText
 local fr = GetLocale() == "frFR"
 text.questAuto = fr and "Suivre automatiquement les quêtes" or "Follow tracked quests automatically"
+text.questAll = fr and "Afficher toutes les quêtes suivies" or "Show all tracked quests"
+text.questHeight = fr and "Hauteur maximale du suivi" or "Maximum tracker height"
+text.questScrollHint = fr and "Molette : faire défiler" or "Mouse wheel: scroll"
+text.questFinish = fr and "Clique pour terminer la quête" or "Click to complete the quest"
+text.questTimer = fr and "Temps restant" or "Time remaining"
 text.questLimit = fr and "Nombre de quêtes automatiques" or "Automatic quest count"
 text.questObjectives = fr and "Afficher les objectifs des quêtes" or "Show quest objectives"
 text.questEmpty = fr and "Aucune quête suivie · suis une quête dans le journal" or "No tracked quests · track a quest in the quest log"
@@ -27,7 +32,9 @@ local function Metadata(id)
     local frequencies = Enum and Enum.QuestFrequency or { Daily = 1, Weekly = 2, ResetByScheduler = 3 }
     local labels, color = {}, nil
     local important = C_QuestLog.IsImportantQuest and C_QuestLog.IsImportantQuest(id)
-    local campaign = info and info.campaignID and info.campaignID > 0
+    local classification = C_QuestInfoSystem and C_QuestInfoSystem.GetQuestClassification(id)
+    local campaign = (info and info.campaignID and info.campaignID > 0)
+        or (classification and Enum and Enum.QuestClassification and classification == Enum.QuestClassification.Campaign)
     if important then labels[#labels + 1] = fr and "Importante" or "Important"; color = addon.questColors.important end
     if campaign then labels[#labels + 1] = fr and "Campagne" or "Campaign"; color = color or addon.questColors.campaign end
     if frequency == frequencies.Daily then
@@ -83,7 +90,7 @@ function addon.GetQuestRows(settings)
     local lookup, selected, rows = {}, {}, {}
     for _, quest in ipairs(catalog) do lookup[quest.id] = quest end
     if settings.questAuto then
-        for index = 1, math.min(#catalog, settings.questLimit) do selected[index] = catalog[index].id end
+        for index = 1, (settings.questAll and #catalog or math.min(#catalog, settings.questLimit)) do selected[index] = catalog[index].id end
     else
         selected = addon.GetContentSelection(settings, catalog)
     end
@@ -109,7 +116,22 @@ function addon.GetQuestRows(settings)
                 valueText = status, questID = id, value = not failed and progress or 0, maximum = not failed and progress and 100 or 0,
                 questTitle = quest.name, questDetails = details, questProgressText = progressText,
                 borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true }
-            if settings.questObjectives and not complete and not failed then
+            local function Detail(name, valueText, value, maximum, autoComplete)
+                if not name or name == "" then return end
+                rows[#rows + 1] = { name = "  " .. name, valueText = valueText or "", value = value, maximum = maximum,
+                    questID = id, questTitle = quest.name, questDetails = details, questProgressText = progressText,
+                    borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true,
+                    autoComplete = autoComplete, labelColor = complete and { 0.3, 1, 0.3 } or { 1, 1, 1 } }
+            end
+            if settings.questObjectives and complete then
+                local index = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)
+                local info = index and C_QuestLog.GetInfo(index)
+                rows[#rows].autoComplete = info and info.isAutoComplete
+                local completion = index and GetQuestLogCompletionText and GetQuestLogCompletionText(index)
+                local waypoint = C_QuestLog.GetNextWaypointText and C_QuestLog.GetNextWaypointText(id)
+                Detail(info and info.isAutoComplete and text.questFinish or completion or waypoint or text.questReady,
+                    nil, nil, nil, info and info.isAutoComplete)
+            elseif settings.questObjectives and not failed then
                 for _, objective in ipairs(objectives or {}) do
                     local value, maximum = objective.numFulfilled or 0, objective.numRequired or 0
                     local valueText = objective.finished and (fr and "Terminé" or "Done") or ""
@@ -124,6 +146,23 @@ function addon.GetQuestRows(settings)
                         questDetails = details, questProgressText = progressText,
                         borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true }
                 end
+                local waypoint = C_QuestLog.GetNextWaypointText and C_QuestLog.GetNextWaypointText(id)
+                if waypoint and waypoint ~= "" then
+                    local duplicate = false
+                    for _, objective in ipairs(objectives or {}) do if objective.text == waypoint then duplicate = true end end
+                    if not duplicate then Detail(waypoint) end
+                end
+                local required = C_QuestLog.GetRequiredMoney and C_QuestLog.GetRequiredMoney(id) or 0
+                if required > 0 and GetMoney() < required then
+                    Detail(fr and "Argent requis" or "Money required", C_CurrencyInfo.GetCoinTextureString(GetMoney()) .. " / " .. C_CurrencyInfo.GetCoinTextureString(required), GetMoney(), required)
+                end
+            end
+            local total, elapsed
+            if C_QuestLog.GetTimeAllowed then total, elapsed = C_QuestLog.GetTimeAllowed(id) end
+            if settings.questObjectives and not complete and not failed and total and elapsed and total > elapsed then
+                local remaining = math.ceil(total - elapsed)
+                Detail(text.questTimer, string.format("%d:%02d", math.floor(remaining / 60), remaining % 60), remaining, total)
+                addon.questHasTimers = true
             end
         end
     end

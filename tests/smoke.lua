@@ -13,6 +13,10 @@ function methods:ClearAllPoints() self.point, self.points = nil, {} end
 function methods:SetSize(width, height) self.width, self.height = width, height end
 function methods:SetWidth(width) self.width = width end
 function methods:SetHeight(height) self.height = height end
+function methods:SetScrollChild(child) self.child = child end
+function methods:EnableMouseWheel() end
+function methods:SetVerticalScroll(value) self.scroll = value end
+function methods:GetVerticalScroll() return self.scroll or 0 end
 function methods:SetScale(scale)
     self.scale = scale
     if self.scaleHook then self.scaleHook() end
@@ -193,7 +197,7 @@ for _, height in ipairs({ 1080, 1440, 2160 }) do
             assert(tl[4] < 0 and tl[5] > 0 and row.border.backdrop.insets.left == 0)
             assert(row.border:GetFrameLevel() > row.bar:GetFrameLevel())
             OnGrid(first.header.height, pixel)
-            local contentTop = -first.content.points[1][3]
+            local contentTop = -first.viewport.points[1][3] + first.rows[1].point[2]
             -- The two-argument offset SetPoint call stores x/y at indices 2/3.
             local outside = -tl[4] - row.border.backdrop.edgeSize * ((style == "ayije" and 9 or 10) / 28)
             assert(contentTop - first.header.height >= 2 * outside, "Header and row borders overlap")
@@ -370,6 +374,7 @@ assert(first.rows[2].data.value == 2 and first.rows[2].data.maximum == 5 and fir
 assert(first.rows[4].data.questID == 102 and first.rows[4].data.valueText == persistedAddon.panelText.questActive, "Zero objectives falsely reported ready")
 assert(first.rows[5].data.questID == 103 and first.rows[6].data.value == 42.5 and first.rows[6].data.maximum == 100)
 assert(not first.rows[7] or not first.rows[7].shown, "Duplicate world quest watch displayed twice")
+SetSetting(first, "questAll", false)
 SetSetting(first, "questLimit", 1)
 assert(first.rows[3].shown and not first.rows[4].shown)
 SetSetting(first, "questLimit", 3)
@@ -477,3 +482,68 @@ SetSetting(first, "content", "preview")
 HasColor(first.rows[1], { 0.38, 0.35, 0.29 })
 assert(not first.rows[1].data.questID, "Reused preview row retains quest metadata")
 print("PASS: daily/weekly/important/campaign/recurring/world labels, partial objective progress, metadata tooltips, category colors across all styles, hover restoration, settings and row reuse.")
+-- Complete coverage of the screenshot: all watches, campaign and hand-in instructions.
+watches, worldWatches = {}, {}
+for id = 201, 214 do watches[#watches + 1] = id end
+C_QuestLog.GetTitleForQuestID = function(id) return "Quest " .. id end
+C_QuestLog.GetLogIndexForQuestID = function(id) return id end
+C_QuestLog.GetInfo = function(id) return { frequency = 0, level = 80, isAutoComplete = id == 203 } end
+Enum.QuestClassification = { Campaign = 1, Normal = 2 }
+C_QuestInfoSystem = { GetQuestClassification = function(id) return id == 201 and 1 or 2 end }
+C_QuestLog.IsImportantQuest = function() return false end
+C_QuestLog.IsRepeatableQuest = function() return false end
+C_QuestLog.IsWorldQuest = function() return false end
+C_QuestLog.IsComplete = function(id) return id == 202 or id == 203 end
+C_QuestLog.GetNextWaypointText = function(id) return id == 202 and "Waypoint fallback" or id == 204 and "Travel to the camp" end
+function GetQuestLogCompletionText(index) return index == 202 and "Deliver the Plowhead to Aliva at Hillhelm Stead." end
+local timeElapsed = 20
+C_QuestLog.GetTimeAllowed = function(id) if id == 205 then return 120, timeElapsed end end
+C_QuestLog.GetRequiredMoney = function(id) return id == 206 and 100000 or 0 end
+C_QuestLog.GetQuestObjectives = function(id) return { { text = "Collect supplies (Optional)", numFulfilled = 1, numRequired = 4, finished = false, type = "item" } } end
+SetSetting(first, "content", "quests")
+SetSetting(first, "questAll", true)
+SetSetting(first, "questLimit", 1)
+SetSetting(first, "questHeight", 150)
+SetSetting(first, "questDetails", true)
+SetSetting(first, "questAuto", true)
+local headers = 0
+local handIn, automatic, waypoint, timer, moneyRow
+for _, row in ipairs(first.rows) do
+    if row.shown then
+        if row.data.name:find("^Quest ") then headers = headers + 1 end
+        if row.data.name:find("Deliver the Plowhead", 1, true) then handIn = row end
+        if row.data.autoComplete and row.data.name:find("Clique", 1, true) then automatic = row end
+        if row.data.name:find("Travel to the camp", 1, true) then waypoint = row end
+        if row.data.name:find("Temps restant", 1, true) then timer = row end
+        if row.data.name:find("Argent requis", 1, true) then moneyRow = row end
+    end
+end
+assert(headers == 14, "All-quests mode still truncates watches")
+assert(first.rows[1].data.name:find("Campagne", 1, true), "Campaign with no campaignID not classified")
+assert(handIn and automatic and waypoint and timer and moneyRow, "Missing native quest instructions/timer/money requirements")
+assert(timer.data.valueText == "1:40" and moneyRow.data.maximum == 100000)
+assert(first.scrollMaximum > 0 and first.scrollHint.shown and first.viewport.height <= 170)
+first.viewport.scripts.OnMouseWheel(first.viewport, -1)
+assert(first.viewport:GetVerticalScroll() > 0)
+for index = 1, 100 do first.viewport.scripts.OnMouseWheel(first.viewport, -1) end
+assert(first.viewport:GetVerticalScroll() == first.scrollMaximum)
+for index = 1, 100 do first.viewport.scripts.OnMouseWheel(first.viewport, 1) end
+assert(first.viewport:GetVerticalScroll() == 0)
+local completedID
+function ShowQuestComplete(id) completedID = id end
+automatic.scripts.OnClick(automatic); assert(completedID == 203)
+combat = true; completedID = nil; automatic.scripts.OnClick(automatic); assert(not completedID)
+combat = false
+local timerEvents
+for _, frame in ipairs(frames) do if frame.events.QUEST_POI_UPDATE then timerEvents = frame end end
+assert(timerEvents and timerEvents.events.SUPER_TRACKING_CHANGED and persistedAddon.questHasTimers)
+timeElapsed = 22
+timerEvents.scripts.OnUpdate(timerEvents, 1)
+assert(timer.data.valueText == "1:38", "Quest timer does not refresh without quest events")
+SetSetting(first, "questObjectives", false)
+persistedAddon.RefreshPanels()
+assert(not persistedAddon.questHasTimers)
+for _, row in ipairs(first.rows) do assert(not row.shown or not row.data.name:find("Deliver the Plowhead", 1, true)) end
+SetSetting(first, "questAll", false)
+assert(first.rows[1].shown and not first.rows[2].shown and first.scrollMaximum == 0 and not first.scrollHint.shown)
+print("PASS: all watched quests, campaign classification fallback, hand-in/auto-completion/waypoints, optional objective text, money requirements, live timers and bounded mouse-wheel scrolling.")
