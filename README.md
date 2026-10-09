@@ -38,6 +38,30 @@ New Lua files must be listed in `FunelQOL.toc` in their required load order. Eac
 4. Toggle the greeting again and reload: the greeting should return.
 5. Check BugSack or enable Lua errors with `/console scriptErrors 1` to catch runtime errors.
 
+## Custom media
+
+`Media.lua` exposes locally imported EllesmereUI **Pixels** artwork through `addon.media`: three bar textures, two border styles with horizontal/vertical separators, and five shield textures. All paths point into FunelQOL, so EllesmereUI is not required at runtime after import.
+
+To import or refresh from an installed EllesmereUI, run PowerShell from this repository:
+
+```powershell
+.\tools\Import-Media.ps1
+```
+
+Example in another Lua file loaded after `Media.lua`:
+
+```lua
+local addonName, addon = ...
+-- On an existing StatusBar:
+bar:SetStatusBarTexture(addon.media.textures.pixelsFill)
+-- On an existing frame created with BackdropTemplate:
+frame:SetBackdrop({ edgeFile = addon.media.borders.pixels.edgeFile, edgeSize = 16 })
+```
+
+The imported TGA files retain their original names and bytes. `Media/Ellesmere/manifest.json` records their SHA256 hashes, and `LICENSE-source.txt` preserves the source license. Source: EllesmereUI 9.4; its changelog credits the PapaPixels collaboration for Pixels artwork. The supplied license reserves all rights and does not provide a redistribution grant. Imported media is excluded from Git and the public repository. A fresh clone must import its own local assets before using these paths.
+
+AyijeUI was not found in the installed AddOns folder or either local retail backup at import time. No AyijeUI artwork is included.
+
 ## References
 
 - [World of Warcraft API](https://warcraft.wiki.gg/wiki/World_of_Warcraft_API)

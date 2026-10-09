@@ -10,3 +10,7 @@ Desktop.ini
 # Generated packages and local tooling
 *.zip
 node_modules/
+
+# Locally imported third-party media (not licensed for public redistribution)
+/Media/Ellesmere/
+/Media/AyijeUI/
