@@ -9,8 +9,54 @@ text.questReady = fr and "À rendre" or "Ready"
 text.questFailed = fr and "Échouée" or "Failed"
 text.questLoading = fr and "Chargement…" or "Loading…"
 text.questActive = fr and "En cours" or "In progress"
+text.questDetails = fr and "Afficher les détails des quêtes" or "Show quest details"
+text.questColors = fr and "Colorer les bordures par type de quête" or "Color borders by quest type"
+text.questProgress = fr and "Progression des objectifs" or "Objective progress"
 text.questHint = fr and "Choisir, déplacer ou retirer une quête active la sélection manuelle. Le suivi automatique se règle en mode édition." or "Choosing, moving or clearing a quest switches to manual selection. Enable automatic tracking in Edit Mode."
 local requested = {}
+addon.questColors = {
+    recurring = { 0.2, 0.6, 1, 1 },
+    important = { 1, 0.75, 0.2, 1 },
+    campaign = { 1, 0.5, 0.15, 1 },
+}
+
+local function Metadata(id)
+    local index = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)
+    local info = index and C_QuestLog.GetInfo(index)
+    local frequency = info and info.frequency
+    local frequencies = Enum and Enum.QuestFrequency or { Daily = 1, Weekly = 2, ResetByScheduler = 3 }
+    local labels, color = {}, nil
+    local important = C_QuestLog.IsImportantQuest and C_QuestLog.IsImportantQuest(id)
+    local campaign = info and info.campaignID and info.campaignID > 0
+    if important then labels[#labels + 1] = fr and "Importante" or "Important"; color = addon.questColors.important end
+    if campaign then labels[#labels + 1] = fr and "Campagne" or "Campaign"; color = color or addon.questColors.campaign end
+    if frequency == frequencies.Daily then
+        labels[#labels + 1] = fr and "Journalière" or "Daily"
+        color = addon.questColors.recurring
+    elseif frequency == frequencies.Weekly then
+        labels[#labels + 1] = fr and "Hebdomadaire" or "Weekly"
+        color = addon.questColors.recurring
+    elseif frequency == frequencies.ResetByScheduler then
+        labels[#labels + 1] = fr and "Récurrente" or "Recurring"
+        color = addon.questColors.recurring
+    elseif C_QuestLog.IsRepeatableQuest and C_QuestLog.IsRepeatableQuest(id) then
+        labels[#labels + 1] = fr and "Répétable" or "Repeatable"
+        color = addon.questColors.recurring
+    end
+    if C_QuestLog.IsWorldQuest and C_QuestLog.IsWorldQuest(id) then labels[#labels + 1] = fr and "Expédition" or "World quest" end
+    if #labels == 0 and info then labels[1] = fr and "Quête normale" or "Normal quest" end
+    if info and info.level and info.level > 0 then labels[#labels + 1] = (fr and "Niv. " or "Lv. ") .. info.level end
+    return table.concat(labels, " · "), color
+end
+
+local function ObjectiveProgress(id, objective)
+    if objective.finished then return 1 end
+    if objective.type == "progressbar" then return math.max(0, math.min(1, (GetQuestProgressBarPercent(id) or 0) / 100)) end
+    if objective.numRequired and objective.numRequired > 0 then
+        return math.max(0, math.min(1, (objective.numFulfilled or 0) / objective.numRequired))
+    end
+    return 0
+end
 
 function addon.GetQuestCatalog()
     local rows, seen = {}, {}
@@ -48,12 +94,21 @@ function addon.GetQuestRows(settings)
             seen[id] = true
             local objectives = C_QuestLog.GetQuestObjectives(id)
             local complete, failed = C_QuestLog.IsComplete(id), C_QuestLog.IsFailed(id)
-            local finished = 0
-            for _, objective in ipairs(objectives or {}) do if objective.finished then finished = finished + 1 end end
+            local details, color = Metadata(id)
+            local finished, progress = 0, 0
+            for _, objective in ipairs(objectives or {}) do
+                if objective.finished then finished = finished + 1 end
+                progress = progress + ObjectiveProgress(id, objective)
+            end
+            progress = complete and 100 or objectives and #objectives > 0 and progress / #objectives * 100 or nil
+            local progressText = progress and string.format("%.0f%%", progress)
             local status = failed and text.questFailed or complete and text.questReady
                 or not objectives and text.questLoading or #objectives > 0 and finished .. " / " .. #objectives or text.questActive
-            rows[#rows + 1] = { name = quest.name, valueText = status, questID = id,
-                questTitle = quest.name, objectives = objectives, wrap = true }
+            if progressText and not complete and not failed then status = progressText .. " · " .. status end
+            rows[#rows + 1] = { name = quest.name .. (settings.questDetails and details ~= "" and "\n" .. details or ""),
+                valueText = status, questID = id, value = not failed and progress or 0, maximum = not failed and progress and 100 or 0,
+                questTitle = quest.name, questDetails = details, questProgressText = progressText,
+                borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true }
             if settings.questObjectives and not complete and not failed then
                 for _, objective in ipairs(objectives or {}) do
                     local value, maximum = objective.numFulfilled or 0, objective.numRequired or 0
@@ -66,7 +121,8 @@ function addon.GetQuestRows(settings)
                     end
                     rows[#rows + 1] = { name = "  " .. objective.text, valueText = valueText,
                         value = value, maximum = maximum, questID = id, questTitle = quest.name,
-                        objectives = objectives, wrap = true }
+                        questDetails = details, questProgressText = progressText,
+                        borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true }
                 end
             end
         end

@@ -365,7 +365,7 @@ function QuestMapFrame_OpenToQuestDetails(id) openedQuest = id end
 first = persistedAddon.panels[1]
 settings = FunelQOLCharDB.layouts.Modern.panel1
 SetSetting(first, "content", "quests")
-assert(settings.questAuto and first.rows[1].data.questID == 101 and first.rows[1].data.valueText == "1 / 2")
+assert(settings.questAuto and first.rows[1].data.questID == 101 and first.rows[1].data.valueText == "70% · 1 / 2")
 assert(first.rows[2].data.value == 2 and first.rows[2].data.maximum == 5 and first.rows[2].height > first.rows[3].height, "Objective text does not wrap")
 assert(first.rows[4].data.questID == 102 and first.rows[4].data.valueText == persistedAddon.panelText.questActive, "Zero objectives falsely reported ready")
 assert(first.rows[5].data.questID == 103 and first.rows[6].data.value == 42.5 and first.rows[6].data.maximum == 100)
@@ -378,7 +378,7 @@ for _, frame in ipairs(frames) do if frame.events.QUEST_WATCH_UPDATE then questE
 assert(questEvents and questEvents.events.QUEST_WATCH_LIST_CHANGED and questEvents.events.QUEST_DATA_LOAD_RESULT)
 questProgress, questComplete = 5, true
 questEvents.scripts.OnEvent(questEvents, "QUEST_WATCH_UPDATE", 101)
-assert(first.rows[1].data.valueText == "2 / 2" and first.rows[2].data.value == 5)
+assert(first.rows[1].data.valueText == "100% · 2 / 2" and first.rows[2].data.value == 5)
 assert(first.rows[4].data.valueText == persistedAddon.panelText.questReady)
 combat = true; first.rows[1].scripts.OnClick(first.rows[1]); assert(openedQuest == nil)
 combat = false; first.rows[1].scripts.OnClick(first.rows[1]); assert(openedQuest == 101)
@@ -411,3 +411,69 @@ assert(first.rows[1].data.name == persistedAddon.panelText.questEmpty)
 LEM.callbacks.create("QuestCopy", 5, "Modern")
 assert(FunelQOLCharDB.layouts.QuestCopy.panel1.content == "quests" and FunelQOLCharDB.layouts.QuestCopy.panel1.selections.quests ~= settings.selections.quests)
 print("PASS: tracked quests and world quests, deduplication, live counts/percentages, objective wrapping, ready/loading/empty states, automatic limits, manual selection/order/retracking, layout copy and combat/edit click guard.")
+-- Quest categories and semantic border colors survive hover, rendering and reuse.
+function methods:SetBackdropBorderColor(...) self.borderColor = { ... } end
+Enum = { QuestFrequency = { Default = 0, Daily = 1, Weekly = 2, ResetByScheduler = 3 } }
+C_QuestLog.GetLogIndexForQuestID = function(id) return id ~= 104 and id or nil end
+C_QuestLog.GetInfo = function(id)
+    return { frequency = id == 101 and 1 or id == 102 and 2 or id == 106 and 3 or 0,
+        campaignID = id == 105 and 1 or nil, level = 80 }
+end
+C_QuestLog.IsImportantQuest = function(id) return id == 102 or id == 108 end
+C_QuestLog.IsRepeatableQuest = function(id) return id == 107 end
+C_QuestLog.IsWorldQuest = function(id) return id == 103 end
+watches, worldWatches = { 101, 102, 105, 106, 107, 108, 104 }, { 103 }
+questProgress, questComplete = 2, false
+SetSetting(first, "questLimit", 8)
+SetSetting(first, "questDetails", true)
+SetSetting(first, "questColors", true)
+SetSetting(first, "questObjectives", false)
+assert(first.rows[1].data.name:find("Journalière", 1, true) and first.rows[1].data.name:find("Niv. 80", 1, true))
+assert(first.rows[2].data.name:find("Importante", 1, true) and first.rows[2].data.name:find("Hebdomadaire", 1, true))
+assert(first.rows[3].data.name:find("Campagne", 1, true))
+assert(first.rows[4].data.name:find("Récurrente", 1, true) and not first.rows[4].data.name:find("Hebdomadaire", 1, true), "Scheduler reset wrongly labeled weekly")
+assert(first.rows[5].data.name:find("Répétable", 1, true))
+assert(first.rows[6].data.name:find("Importante", 1, true))
+assert(first.rows[7].data.name == "Quête 104", "Unavailable metadata guessed a normal quest")
+assert(first.rows[8].data.name:find("Expédition", 1, true))
+local function HasColor(row, expected)
+    local actual = row.border.borderColor
+    assert(actual and actual[1] == expected[1] and actual[2] == expected[2] and actual[3] == expected[3], "Incorrect quest border color")
+end
+for _, style in ipairs({ "blizzard", "pixels", "ayije" }) do
+    SetSetting(first, "style", style)
+    HasColor(first.rows[1], persistedAddon.questColors.recurring)
+    HasColor(first.rows[2], persistedAddon.questColors.recurring)
+    HasColor(first.rows[3], persistedAddon.questColors.campaign)
+    HasColor(first.rows[6], persistedAddon.questColors.important)
+    local row = first.rows[1]
+    row.scripts.OnEnter(row)
+    assert(row.border.borderColor[2] > persistedAddon.questColors.recurring[2], "Hover does not highlight blue border")
+    persistedAddon.RefreshPanels()
+    assert(row.border.borderColor[2] > persistedAddon.questColors.recurring[2], "Live refresh loses hover color")
+    row.scripts.OnLeave(row)
+    HasColor(row, persistedAddon.questColors.recurring)
+end
+assert(first.rows[1].data.valueText == "70% · 1 / 2" and first.rows[1].bar.value == 70 and first.rows[1].bar.maximum == 100)
+assert(first.rows[8].data.valueText == "43% · 0 / 1", "Progress bar percentage reduced to finished-objective count")
+local tooltipLines = {}
+GameTooltip.AddLine = function(_, line) tooltipLines[#tooltipLines + 1] = line end
+first.rows[2].scripts.OnEnter(first.rows[2])
+assert(tooltipLines[1]:find("Hebdomadaire", 1, true))
+tooltipLines = {}
+first.rows[1].scripts.OnEnter(first.rows[1])
+assert(tooltipLines[2]:find(persistedAddon.panelText.questProgress, 1, true))
+first.rows[1].scripts.OnLeave(first.rows[1])
+first.rows[2].scripts.OnLeave(first.rows[2])
+SetSetting(first, "questDetails", false)
+assert(first.rows[1].data.name == "Quest 101" and first.rows[1].data.questDetails:find("Journalière", 1, true), "Compact display erased tooltip metadata")
+SetSetting(first, "questColors", false)
+HasColor(first.rows[1], { 0.38, 0.35, 0.29 })
+SetSetting(first, "questColors", true)
+SetSetting(first, "questObjectives", true)
+HasColor(first.rows[1], persistedAddon.questColors.recurring)
+HasColor(first.rows[2], persistedAddon.questColors.recurring)
+SetSetting(first, "content", "preview")
+HasColor(first.rows[1], { 0.38, 0.35, 0.29 })
+assert(not first.rows[1].data.questID, "Reused preview row retains quest metadata")
+print("PASS: daily/weekly/important/campaign/recurring/world labels, partial objective progress, metadata tooltips, category colors across all styles, hover restoration, settings and row reuse.")

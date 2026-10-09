@@ -37,7 +37,7 @@ local function Settings(id, layoutName)
         title = definition.title, width = 260, scale = 1, enabled = true,
         collapsed = false, style = "blizzard", opacity = 0.94,
         fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
-        questAuto = true, questLimit = 3, questObjectives = true,
+        questAuto = true, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -75,7 +75,17 @@ local function DisableTextureSnapping(texture)
     end
 end
 
-local function SetBackdrop(frame, style, opacity, pixel, contentLevel)
+local defaultBorderColor = { 0.38, 0.35, 0.29, 1 }
+local function PaintBorder(frame)
+    local color = frame.normalBorderColor or defaultBorderColor
+    if frame.isHovered then
+        if color == defaultBorderColor then color = { 0.85, 0.72, 0.38, 1 }
+        else color = { math.min(1, color[1] + 0.2), math.min(1, color[2] + 0.2), math.min(1, color[3] + 0.2), color[4] } end
+    end
+    frame.border:SetBackdropBorderColor(color[1], color[2], color[3], color[4])
+end
+
+local function SetBackdrop(frame, style, opacity, pixel, contentLevel, color)
     if not frame.background then
         frame.background = frame:CreateTexture(nil, "BACKGROUND")
         frame.border = CreateFrame("Frame", nil, frame, "BackdropTemplate")
@@ -95,7 +105,8 @@ local function SetBackdrop(frame, style, opacity, pixel, contentLevel)
     frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", reach, -reach)
     frame.border:SetFrameLevel((contentLevel or frame:GetFrameLevel()) + 2)
     frame.border:SetBackdrop({ edgeFile = style.edgeFile, edgeSize = style.edgeSize, insets = { left = 0, right = 0, top = 0, bottom = 0 } })
-    frame.border:SetBackdropBorderColor(0.38, 0.35, 0.29, 1)
+    frame.normalBorderColor = color or defaultBorderColor
+    PaintBorder(frame)
     for _, region in ipairs({ frame.border:GetRegions() }) do DisableTextureSnapping(region) end
 end
 
@@ -127,6 +138,8 @@ local function CreateRow(panel)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         if data.questID then
             GameTooltip:SetText(data.questTitle, 1, 0.82, 0)
+            if data.questDetails and data.questDetails ~= "" then GameTooltip:AddLine(data.questDetails, 0.6, 0.8, 1, true) end
+            if data.questProgressText then GameTooltip:AddLine(text.questProgress .. ": " .. data.questProgressText, 1, 1, 1) end
             for _, objective in ipairs(data.objectives or {}) do
                 GameTooltip:AddLine(objective.text, objective.finished and 0.3 or 1, 1, objective.finished and 0.3 or 1, true)
             end
@@ -139,7 +152,8 @@ local function CreateRow(panel)
             if data.valueText and data.valueText ~= "" then GameTooltip:AddLine(data.valueText, 1, 1, 1) end
         end
         GameTooltip:Show()
-        self.border:SetBackdropBorderColor(0.85, 0.72, 0.38, 1)
+        self.isHovered = true
+        PaintBorder(self)
     end)
     row:SetScript("OnClick", function(self)
         if not editing and self.data.questID and not InCombatLockdown() then
@@ -148,7 +162,8 @@ local function CreateRow(panel)
     end)
     row:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
-        self.border:SetBackdropBorderColor(0.38, 0.35, 0.29, 1)
+        self.isHovered = false
+        PaintBorder(self)
     end)
     return row
 end
@@ -187,7 +202,7 @@ local function Render(panel)
         row:SetPoint("TOPLEFT", 0, -renderedHeight)
         row:SetWidth(width)
         row:SetHeight(rowHeight)
-        SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel())
+        SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel(), entry.borderColor)
         row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.value:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.bar:SetStatusBarTexture(style.fill)
@@ -266,6 +281,8 @@ local function AddSettings(panel)
         { key = "content", label = text.content, kind = LEM.SettingType.Dropdown, default = "preview" },
         { key = "questAuto", label = text.questAuto, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questLimit", label = text.questLimit, kind = LEM.SettingType.Slider, default = 3, min = 1, max = 8, step = 1 },
+        { key = "questDetails", label = text.questDetails, kind = LEM.SettingType.Checkbox, default = true },
+        { key = "questColors", label = text.questColors, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questObjectives", label = text.questObjectives, kind = LEM.SettingType.Checkbox, default = true },
         { key = "enabled", label = text.enabled, kind = LEM.SettingType.Checkbox, default = true },
         { key = "collapsed", label = text.collapsed, kind = LEM.SettingType.Checkbox, default = false },
@@ -285,7 +302,7 @@ local function AddSettings(panel)
             hidden = function(layoutName)
                 local settings = Settings(id, layoutName)
                 if key == "rowCount" then return settings.content ~= "preview" end
-                if key == "questAuto" or key == "questObjectives" then return settings.content ~= "quests" end
+                if key == "questAuto" or key == "questObjectives" or key == "questDetails" or key == "questColors" then return settings.content ~= "quests" end
                 if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto end
                 return false
             end,
