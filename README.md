@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.8.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.8.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -175,7 +175,7 @@ The sectioned quest tracker also uses the compact shell: centered white uppercas
 
 After `/reload`, select a panel in `/funelqol edit` and choose **Content → Great Vault** or **Renown · Midnight** (French: **Chambre forte** / **Renoms · Midnight**). Both use the compact tracker surface. **Configure rows** selects/reorders Vault categories or renown factions, saved independently per panel/layout. Initial selections include all available categories/factions, up to the editor's eight selection slots; a Vault category renders all of its reward slots, including the ninth slot across three categories.
 
-The Vault reads live activity thresholds and progress; it never assumes fixed seasonal counts. Each locked slot shows progress toward its threshold. Unlocked slots turn green and show the example reward item level when cached, otherwise **OK**. Hover for full progress, reward item level/link and slot details. An available reward adds a gold **Claim** row. Previous-period rewards are identified in the tooltip when Blizzard reports them. Concession rewards are excluded; the world/PvP category follows Blizzard's conditional display. Missing Vault data produces an unavailable message.
+The Vault reads live activity thresholds and progress; it never assumes fixed seasonal counts. Each category is a row of three framed cells, forming a 3×3 grid when all three categories are selected. Unlocked slots show the example reward item level in green when cached, otherwise **?**. Locked slots show **—**. Activity counts and unlock thresholds appear only in the hover tooltip. Hover for full progress, reward item level/link and slot details. An available reward adds a gold **Claim** row. Previous-period rewards are identified in the tooltip when Blizzard reports them. Concession rewards are excluded; the world/PvP category follows Blizzard's conditional display. Missing Vault data produces an unavailable message.
 
 Renown is discovered through the Midnight expansion filter (11), without hardcoded faction names. Older and hidden factions are excluded; locked factions remain visible in gray with their unlock description. Each unlocked faction shows its renown level and percentage toward the next level, or **MAX** in green. Hover for exact reputation values. All current factions are initially selected rather than just three; selection/reorder remains available in the editor.
 

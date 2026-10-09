@@ -1063,7 +1063,7 @@ SetSetting(first, "content", "vault")
 assert(first.body.shown and first.title.text == "CHAMBRE FORTE")
 local vaultRows = persistedAddon.GetPanelRows(settings)
 assert(#vaultRows == 9 and vaultRows[1].vaultActivityID == 11 and vaultRows[1].valueText == "285")
-assert(vaultRows[2].valueText == "3 / 4" and vaultRows[4].vaultActivityID == 31)
+assert(vaultRows[2].valueText == "—" and vaultRows[4].vaultActivityID == 31)
 assert(vaultRows[1].tooltipLines[2]:find("3 / 2", 1, true), "Vault loses full progress in tooltip")
 assert(settings.selections.vault[3] == 6, "Vault categories are not all selected by default")
 settings.selections.vault = { 6, 1, 6, 0, 0, 0, 0, 0 }
@@ -1076,7 +1076,7 @@ progressEvents.scripts.OnEvent(progressEvents, "WEEKLY_REWARDS_UPDATE")
 assert(first.rows[1].value.text == "À récupérer" and first.rows[1].data.tooltipLines[1])
 assert(first.rows[2].data.tooltipLines[#first.rows[2].data.tooltipLines]:find("précédente", 1, true))
 rewardLevel = nil
-assert(persistedAddon.GetPanelRows(settings)[5].valueText == "OK", "Uncached reward item level invents a value")
+assert(persistedAddon.GetPanelRows(settings)[5].valueText == "?", "Uncached reward item level invents a value")
 rewardLevel = 285
 activities[3].progress = 8
 progressEvents.scripts.OnEvent(progressEvents, "WEEKLY_REWARDS_UPDATE")
@@ -1134,8 +1134,10 @@ for _, content in ipairs({ "vault", "renown" }) do
                 for _, row in ipairs(first.rows) do
                     if row.shown then
                         assert(row.value.width >= row.value:GetUnboundedStringWidth(), "Progress tracker value is clipped")
-                        local iconLeft = row.width + row.icon.point[4] - row.icon.width
-                        assert(row.label.point[2] + row.label.width <= iconLeft, "Progress tracker icon overlaps label")
+                        if not row.data.vaultActivityID then
+                            local iconLeft = row.width + row.icon.point[4] - row.icon.width
+                            assert(row.label.point[2] + row.label.width <= iconLeft, "Progress tracker icon overlaps label")
+                        end
                         row.scripts.OnEnter(row)
                     end
                 end
@@ -1144,3 +1146,53 @@ for _, content in ipairs({ "vault", "renown" }) do
     end
 end
 print("PASS: vault live slots/thresholds/reward levels, previous-period claim status, ordered category filtering, missing APIs/item cache, Midnight-only renown, max/locked factions, live events, editor/layout isolation, compact bounds and tooltips.")
+
+-- Vault categories render as three columns, with progress confined to hover.
+vaultClaim = false
+settings.selections.vault = { 3, 1, 6, 0, 0, 0, 0, 0 }
+SetSetting(first, "content", "vault")
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 260, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, scale in ipairs({ 0.7, 1.5 }) do
+                SetSetting(first, "scale", scale)
+                assert(first.vaultLabels[1].shown and first.vaultLabels[2].shown and first.vaultLabels[3].shown)
+                local groups, lastBottom = 0, nil
+                for offset = 0, 6, 3 do
+                    local firstCell = first.rows[offset + 1]
+                    if lastBottom then assert(firstCell.point[3] < lastBottom, "Vault category rows overlap") end
+                    for column = 1, 3 do
+                        local cell = first.rows[offset + column]
+                        assert(cell.data.vaultSlot == column and cell.point[3] == firstCell.point[3], "Vault slots do not share their category row")
+                        assert(cell.width == firstCell.width and cell.height == firstCell.height)
+                        assert(cell.border.shown and cell.background.shown and not cell.label.shown and not cell.icon.shown)
+                        assert(cell.value.point[1] == "CENTER" and cell.value.width >= cell.value:GetUnboundedStringWidth())
+                        assert(not cell.value.text:find("/", 1, true), "Activity count leaks into Vault cell")
+                        assert(cell.data.tooltipLines[2]:find("/", 1, true), "Activity count missing from hover")
+                        assert(cell.point[2] + cell.width <= first.width + 9, "Vault cell protrudes beyond panel")
+                        if column > 1 then
+                            local previous = first.rows[offset + column - 1]
+                            assert(cell.point[2] > previous.point[2] + previous.width, "Vault columns overlap")
+                        end
+                        cell.scripts.OnEnter(cell)
+                    end
+                    lastBottom = firstCell.point[3] - firstCell.height
+                    groups = groups + 1
+                end
+                assert(groups == 3 and not first.rows[10].shown)
+            end
+        end
+    end
+end
+SetSetting(first, "collapsed", true)
+assert(not first.viewport.shown and not first.body.shown)
+SetSetting(first, "collapsed", false)
+SetSetting(first, "content", "renown")
+for _, label in ipairs(first.vaultLabels) do assert(not label.shown, "Vault caption remains on another tracker") end
+assert(first.rows[1].label.shown and first.rows[1].icon.shown and not first.rows[1].border.shown)
+SetSetting(first, "content", "vault")
+assert(first.rows[1].value.point[1] == "CENTER" and not first.rows[1].label.shown)
+print("PASS: Vault three-by-three grid, equal columns, category captions, centered item levels, hover-only activity counts, pixel-safe bounds across styles/widths/fonts/scales, collapse and renderer reuse.")
