@@ -1174,7 +1174,7 @@ for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
                 local row = first.rows[1]
                 assert(row.icon.atlas == "majorfactions_icons_court512" and row.icon.shown)
                 assert(row.icon.texCoords[1] == 0.1 and row.icon.texCoords[2] == 0.3 and row.icon.texCoords[3] == 0.2 and row.icon.texCoords[4] == 0.4, "Faction atlas UVs are overwritten with the entire texture sheet")
-                assert(row.icon.width > first.rows[3].icon.width and row.height >= row.icon.height)
+                assert(row.icon.width == first.rows[3].icon.width and row.height >= row.icon.height)
                 local iconLeft = row.width + row.icon.point[4] - row.icon.width
                 assert(row.label.point[2] + row.label.width <= iconLeft, "Renown emblem overlaps label")
                 assert(row.value.width >= row.value:GetUnboundedStringWidth())
@@ -1193,3 +1193,33 @@ assert(not first.rows[1].icon.atlas and first.rows[1].icon.texCoords[1] == 0.08,
 SetSetting(first, "content", "renown")
 assert(first.rows[1].icon.atlas == "majorfactions_icons_court512")
 print("PASS: faction-specific Blizzard emblems, validated atlas fallback, uncropped larger logos, compact spacing across themes/widths/fonts/scales and texture reset on row reuse.")
+
+-- Renown logos and values occupy fixed columns regardless of value length.
+settings.selections.renown = { 1, 2, 3, 5, 0, 0, 0, 0 }
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 260, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, scale in ipairs({ 0.7, 1.5 }) do
+                SetSetting(first, "scale", scale)
+                local topRow = first.rows[1]
+                for index = 1, 4 do
+                    local row = first.rows[index]
+                    assert(row.icon.point[4] == topRow.icon.point[4] and row.icon.width == topRow.icon.width)
+                    assert(row.value.point[2] == topRow.value.point[2] and row.value.width == topRow.value.width and row.value.fontSize == topRow.value.fontSize)
+                    assert(row.label.width == topRow.label.width, "Renown labels do not share their column")
+                    local valueLeft = row.width + row.value.point[2] - row.value.width
+                    local iconLeft = row.width + row.icon.point[4] - row.icon.width
+                    assert(row.label.point[2] + row.label.width < valueLeft, "Renown label overlaps value column")
+                    assert(row.width + row.value.point[2] < iconLeft, "Renown value overlaps right logo column")
+                    assert(row.value.width >= row.value:GetUnboundedStringWidth())
+                end
+            end
+        end
+    end
+end
+SetSetting(first, "content", "currencies")
+assert(first.rows[1].value.point[2] >= -9, "Renown value column leaks into currency tracker")
+print("PASS: fixed right-side renown logo column, aligned value/label columns, uniform value fonts, narrow panel bounds and currency renderer reuse.")

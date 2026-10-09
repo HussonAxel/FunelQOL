@@ -358,6 +358,24 @@ local function Render(panel)
     panel.arrow:SetPoint(compactSurface and "LEFT" or "RIGHT", compactSurface and Snap(5, pixel) or -9, 0)
     panel.arrow:SetText(compactSurface and ("|TInterface\\Buttons\\UI-ScrollBar-Scroll" .. (settings.collapsed and "Up" or "Down") .. "Button-Up:16:16:0:0|t") or settings.collapsed and "+" or "-")
     local data = delves and addon.GetDelveRows(settings) or tracker and addon.GetTrackerRows(settings) or addon.GetPanelRows(settings)
+    local renown = settings.content == "renown"
+    local renownValueWidth, renownFontSize = 0, settings.fontSize
+    if renown then
+        panel.valueMeasure = panel.valueMeasure or panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        local available = rowWidth - Snap(6 + 8 + 8 + 26, pixel) - 30
+        repeat
+            panel.valueMeasure:SetFont(STANDARD_TEXT_FONT, renownFontSize, "OUTLINE")
+            renownValueWidth = 0
+            for _, entry in ipairs(data) do
+                panel.valueMeasure:SetText(entry.valueText or "")
+                renownValueWidth = math.max(renownValueWidth, panel.valueMeasure:GetUnboundedStringWidth())
+            end
+            if renownValueWidth <= available or renownFontSize <= 8 then break end
+            renownFontSize = renownFontSize - 1
+        until false
+        renownValueWidth = math.ceil(math.min(available, renownValueWidth) / pixel) * pixel
+        panel.valueMeasure:Hide()
+    end
     local renderedHeight = 0
     local readable = tracker or settings.content == "quests" and settings.questReadable
     local groupIndex, currentGroup, groupStart = 0, nil, 0
@@ -409,7 +427,7 @@ local function Render(panel)
         row.separator:SetHeight(pixel)
         row.separator:SetColorTexture(0.2, 0.2, 0.2, 0.7)
         row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
-        row.value:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
+        row.value:SetFont(STANDARD_TEXT_FONT, renown and renownFontSize or settings.fontSize, "OUTLINE")
         row.value:SetTextColor(1, 1, 1)
         row.bar:SetStatusBarTexture(style.fill)
         row.bar:SetStatusBarColor(0.12, 0.42, 0.62, 0.65)
@@ -439,8 +457,9 @@ local function Render(panel)
         row.value:ClearAllPoints()
         row.value:SetPoint("RIGHT", -valueInset, 0)
         row.value:SetText(entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
-        local compactIconSize = Snap(entry.iconSize or 14, pixel)
+        local compactIconSize = Snap(renown and 20 or entry.iconSize or 14, pixel)
         local iconSpace = compact and entry.icon and not entry.moneyAmount and compactIconSize + Snap(6, pixel) or 0
+        if renown then row.value:SetPoint("RIGHT", -valueInset - iconSpace, 0) end
         local availableWidth = rowWidth - labelStart - valueInset - valueGap - iconSpace - 30
         local naturalWidth = row.value:GetUnboundedStringWidth()
         if entry.moneyAmount or entry.fitValue then
@@ -455,6 +474,7 @@ local function Render(panel)
             end
         end
         local valueWidth = math.ceil(math.min((entry.moneyAmount or entry.fitValue) and availableWidth or rowWidth * 0.48, naturalWidth) / pixel) * pixel
+        if renown then valueWidth = renownValueWidth end
         row.value:SetWidth(valueWidth)
         row.label:SetWidth(math.max(30, rowWidth - labelStart - valueInset - valueGap - valueWidth - iconSpace))
         row.label:SetWordWrap(entry.wrap or false)
@@ -463,7 +483,7 @@ local function Render(panel)
         row.label:SetTextColor(labelColor[1], labelColor[2], labelColor[3])
         if compact and not entry.moneyAmount then row.value:SetTextColor(labelColor[1], labelColor[2], labelColor[3]) end
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
-        if compact and entry.iconSize then actualHeight = math.max(actualHeight, compactIconSize + Snap(4, pixel)) end
+        if compact and (entry.iconSize or renown) then actualHeight = math.max(actualHeight, compactIconSize + Snap(4, pixel)) end
         if tracker then
             if entry.isQuestHeader then
                 renderedHeight = renderedHeight + Snap(questTracker and 4 or 8, pixel)
@@ -516,7 +536,7 @@ local function Render(panel)
         if compact then
             row.icon:ClearAllPoints()
             row.icon:SetSize(compactIconSize, compactIconSize)
-            row.icon:SetPoint("RIGHT", row, "RIGHT", -Snap(valueInset + valueWidth + 4, pixel), 0)
+            row.icon:SetPoint("RIGHT", row, "RIGHT", renown and -valueInset or -Snap(valueInset + valueWidth + 4, pixel), 0)
             row.icon:SetShown(entry.icon ~= nil and not entry.moneyAmount)
         elseif not tracker then
             row.icon:ClearAllPoints()

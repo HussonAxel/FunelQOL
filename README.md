@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.8.2 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.8.3 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -184,3 +184,5 @@ Weekly reward, reward item, faction reputation, renown level/unlock and login ev
 Sources: [Blizzard weekly-reward API](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/WeeklyRewardsDocumentation.lua), [Blizzard Vault display logic](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_WeeklyRewards/Blizzard_WeeklyRewards.lua), [Blizzard major-faction API](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/MajorFactionsDocumentation.lua), [Blizzard item-level API](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/ItemDocumentation.lua). The providers live in `ProgressContent.lua`.
 
 Renown rows use each faction's Blizzard emblem (`majorfactions_icons_<textureKit>512`), at 20 UI units with the full atlas visible. Row height and label/value spacing reserve room for the larger logo. Atlas availability is checked before applying it; missing faction art falls back to the reputation icon. The atlas is selected through faction data rather than localized faction names. Reference: [Blizzard Journeys faction icons](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_EncounterJournal/Mainline/Blizzard_Journeys.lua).
+
+Renown emblems now occupy a fixed 20-unit column at the far right. Values share a right-aligned column immediately to its left, measured from the widest visible value; labels share the remaining width. All values use the same font size, reduced together if a narrow panel requires it. Fallback emblems reserve the same space.
