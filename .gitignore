@@ -1,0 +1,12 @@
+# Editor and operating system files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Generated packages and local tooling
+*.zip
+node_modules/

@@ -1,0 +1,8 @@
+## Interface: 120100
+## Title: FunelQOL
+## Notes: A personal quality-of-life addon for World of Warcraft Retail.
+## Author: Axel Husson
+## Version: 0.1.0
+## SavedVariables: FunelQOLDB
+
+Core.lua
