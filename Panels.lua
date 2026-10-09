@@ -37,7 +37,7 @@ local function Settings(id, layoutName)
         title = definition.title, width = 260, scale = 1, enabled = true,
         collapsed = false, style = "blizzard", opacity = 0.94,
         fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
-        questReadable = true, questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
+        questTracker = true, questEvents = true, questReadable = true, questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -141,7 +141,13 @@ local function CreateRow(panel)
     row:SetScript("OnEnter", function(self)
         local data = self.data
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        if data.questID then
+        if data.trackerSection then
+            GameTooltip:SetText(data.name, 1, 1, 1)
+        elseif data.eventID then
+            GameTooltip:SetText(data.questTitle, 1, 0.55, 0.12)
+            if data.questZone then GameTooltip:AddLine(data.questZone, 0.3, 0.7, 1, true) end
+            if data.description then GameTooltip:AddLine(data.description, 1, 1, 1, true) end
+        elseif data.questID then
             GameTooltip:SetText(data.questTitle, 1, 0.82, 0)
             if data.questDetails and data.questDetails ~= "" then GameTooltip:AddLine(data.questDetails, 0.6, 0.8, 1, true) end
             if data.questProgressText then GameTooltip:AddLine(text.questProgress .. ": " .. data.questProgressText, 1, 1, 1) end
@@ -161,7 +167,15 @@ local function CreateRow(panel)
         PaintBorder(self)
     end)
     row:SetScript("OnClick", function(self)
-        if not editing and self.data.questID and not InCombatLockdown() then
+        if editing then return end
+        if self.data.trackerSection then
+            local settings = Settings(panel.definition.id)
+            local key = self.data.trackerSection
+            settings.questSections[key] = not settings.questSections[key]
+            addon.RefreshPanels()
+        elseif self.data.eventID and not InCombatLockdown() and OpenWorldMap then
+            OpenWorldMap(self.data.mapID)
+        elseif self.data.questID and not InCombatLockdown() then
             if self.data.autoComplete and ShowQuestComplete then ShowQuestComplete(self.data.questID) else QuestMapFrame_OpenToQuestDetails(self.data.questID) end
         end
     end)
@@ -173,18 +187,104 @@ local function CreateRow(panel)
     return row
 end
 
+local function LayoutTrackerRow(row, entry, settings, width, pixel)
+    local function P(value) return Snap(value, pixel) end
+    row.value:Hide()
+    row.bar:Hide()
+    row.border:Hide()
+    row.background:Hide()
+    row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (entry.isQuestHeader and 2 or 1), "")
+    row.label:SetWordWrap(true)
+    if row.label.SetShadowOffset then row.label:SetShadowOffset(1, -1); row.label:SetShadowColor(0, 0, 0, 1) end
+    local section, header = entry.trackerSection, entry.isQuestHeader
+    local left = P((section or not header and not entry.questObjective) and 12 or 36)
+    row.label:ClearAllPoints()
+    row.label:SetPoint("TOPLEFT", left, -P(section and 6 or 2))
+    row.label:SetWidth(width - left - P(12))
+    if section then
+        row.label:SetText((entry.sectionCollapsed and "+ " or "− ") .. entry.name)
+        row.label:SetTextColor(1, 1, 1)
+        row.background:SetColorTexture(0.3, 0.24, 0.06, 0.35)
+        row.background:Show()
+        row.trackerLine = row.trackerLine or row:CreateTexture(nil, "ARTWORK")
+        row.trackerLine:ClearAllPoints()
+        row.trackerLine:SetPoint("BOTTOMLEFT", P(8), 0)
+        row.trackerLine:SetPoint("BOTTOMRIGHT", -P(8), 0)
+        row.trackerLine:SetHeight(P(1))
+        row.trackerLine:SetColorTexture(0.65, 0.5, 0.12, 0.8)
+        DisableTextureSnapping(row.trackerLine)
+        row.trackerLine:Show()
+        row.icon:Hide()
+        return P(row.label:GetStringHeight() + 14)
+    end
+    local label = header and entry.questTitle or entry.name:gsub("^%s+", "")
+    if entry.questObjective and not entry.directive then label = "- " .. label end
+    local counter = entry.valueText or ""
+    if not header and counter ~= "" and (entry.progressBar or (counter:find("%d%s*/%s*%d")
+        and not label:gsub("%s+", ""):find(counter:gsub("%s+", ""), 1, true))) then label = label .. " · " .. counter end
+    row.label:SetText(label)
+    local height = row.label:GetStringHeight() + 5
+    if header then
+        local metadata = entry.questZone and "|cff4da6e6" .. entry.questZone .. "|r" or ""
+        if settings.questDetails then
+            local badge = entry.questBadge or ""
+            local status = entry.questFailed and text.questFailed or entry.valueText == text.questLoading and text.questLoading
+                or not entry.questComplete and entry.value and entry.value > 0 and entry.questProgressText or ""
+            local details = badge .. (badge ~= "" and status ~= "" and " · " or "") .. status
+            if details ~= "" then metadata = metadata .. (metadata ~= "" and "\n" or "") .. details end
+        end
+        row.meta:ClearAllPoints()
+        row.meta:SetPoint("TOPLEFT", left, -P(row.label:GetStringHeight() + 5))
+        row.meta:SetWidth(width - left - P(12))
+        row.meta:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "")
+        row.meta:SetTextColor(0.65, 0.7, 0.75)
+        row.meta:SetText(metadata)
+        row.meta:SetShown(metadata ~= "")
+        if metadata ~= "" then height = height + row.meta:GetStringHeight() + 3 end
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("TOPLEFT", P(10), -P(2))
+        row.icon:SetSize(P(20), P(20))
+        row.icon:SetTexCoord(0, 1, 0, 1)
+        row.icon:SetTexture(entry.questIcon or entry.icon)
+        if entry.iconAtlas then row.icon:SetAtlas(entry.iconAtlas, false) end
+        row.icon:Show()
+        row.trackerAccent = row.trackerAccent or row:CreateTexture(nil, "ARTWORK")
+        row.trackerAccent:ClearAllPoints()
+        row.trackerAccent:SetPoint("TOPLEFT", P(5), -P(2))
+        row.trackerAccent:SetPoint("BOTTOMLEFT", P(5), P(2))
+        row.trackerAccent:SetWidth(P(2))
+        local color = entry.borderColor or defaultBorderColor
+        row.trackerAccent:SetColorTexture(color[1], color[2], color[3], 0.9)
+        DisableTextureSnapping(row.trackerAccent)
+        row.trackerAccent:SetShown(entry.borderColor ~= nil)
+        height = math.max(24, height)
+    else
+        row.icon:Hide()
+        if settings.showBars and entry.progressBar and (entry.maximum or 0) > 0 then
+            height = height + 9
+            row.bar:ClearAllPoints()
+            row.bar:SetPoint("BOTTOMLEFT", left, P(2))
+            row.bar:SetPoint("BOTTOMRIGHT", -P(12), P(2))
+            row.bar:SetHeight(P(4))
+            row.bar:Show()
+        end
+    end
+    return P(height)
+end
+
 local function Render(panel)
     local settings = Settings(panel.definition.id)
     local style = styles[settings.style]
     panel:SetScale(settings.scale)
     local pixel = PixelUnit(panel)
     local width = Snap(settings.width, pixel)
-    local headerHeight = Snap(26, pixel)
+    local tracker = settings.content == "quests" and settings.questReadable and settings.questTracker
+    local headerHeight = Snap(tracker and 34 or 26, pixel)
     -- Alpha >= 64 starts at texel 11 (Ayije) / 12 (Pixels), in the 2..29
     -- sampled cell. Leave room for each texture's exterior ink on both surfaces.
     local outerInk = style.centered and math.max(0, Snap(style.edgeSize / 2, pixel) - style.edgeSize * style.inkInset) or 0
     local gap = math.ceil((3 + outerInk * 2) / pixel - 0.001) * pixel
-    local contentTop = headerHeight + gap
+    local contentTop = headerHeight + (tracker and 0 or gap)
     local rowHeight = Snap(settings.rowHeight, pixel)
     panel:SetWidth(width)
     panel.header:SetHeight(headerHeight)
@@ -194,12 +294,19 @@ local function Render(panel)
     panel.viewport:SetPoint("TOPLEFT", -clipPadding, -contentTop + clipPadding - questInset)
     panel.viewport:SetPoint("TOPRIGHT", clipPadding, -contentTop + clipPadding - questInset)
     SetBackdrop(panel.header, style, settings.opacity, pixel)
-    panel.title:SetText(settings.title)
+    if tracker then SetBackdrop(panel, style, settings.opacity, pixel) end
+    if panel.background then panel.background:SetShown(tracker); panel.border:SetShown(tracker) end
+    panel.header.background:SetShown(not tracker)
+    panel.header.border:SetShown(not tracker)
+    panel.title:ClearAllPoints()
+    panel.title:SetPoint(tracker and "LEFT" or "CENTER", tracker and Snap(12, pixel) or -8, 0)
+    panel.title:SetText(tracker and settings.title == panel.definition.title and text.trackerTitle or settings.title)
     panel.title:SetWidth(width - Snap(40, pixel))
-    panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
+    panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (tracker and 3 or 0), tracker and "" or "OUTLINE")
+    panel.title:SetTextColor(1, tracker and 1 or 0.82, tracker and 1 or 0)
     panel.editModeName = "FunelQOL · " .. settings.title
     panel.arrow:SetText(settings.collapsed and "+" or "-")
-    local data = addon.GetPanelRows(settings)
+    local data = tracker and addon.GetTrackerRows(settings) or addon.GetPanelRows(settings)
     local renderedHeight = 0
     local readable = settings.content == "quests" and settings.questReadable
     local groupIndex, currentGroup, groupStart = 0, nil, 0
@@ -214,8 +321,10 @@ local function Render(panel)
         if not row then row = CreateRow(panel); panel.rows[index] = row end
         row.data = entry
         row.meta:Hide()
+        if row.trackerLine then row.trackerLine:Hide() end
+        if row.trackerAccent then row.trackerAccent:Hide() end
         row.value:Show()
-        if readable and entry.isQuestHeader then
+        if readable and entry.isQuestHeader and not tracker then
             FinishGroup()
             groupIndex = groupIndex + 1
             panel.questGroups = panel.questGroups or {}
@@ -253,6 +362,7 @@ local function Render(panel)
         row.bar:SetValue(math.min(entry.value or 0, math.max(1, entry.maximum or 0)))
         row.bar:SetShown(settings.showBars and (entry.maximum or 0) > 0)
         row.icon:SetTexture(entry.icon)
+        row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         DisableTextureSnapping(row.icon)
         row.icon:SetSize(Snap(16, pixel), Snap(16, pixel))
         row.icon:ClearAllPoints()
@@ -286,7 +396,14 @@ local function Render(panel)
         local labelColor = entry.labelColor or { 1, 0.82, 0 }
         row.label:SetTextColor(labelColor[1], labelColor[2], labelColor[3])
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
-        if readable and (entry.isQuestHeader or entry.questObjective) then
+        if tracker then
+            if entry.isQuestHeader then
+                renderedHeight = renderedHeight + Snap(8, pixel)
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", clipPadding, -clipPadding - renderedHeight)
+            end
+            actualHeight = LayoutTrackerRow(row, entry, settings, width, pixel)
+        elseif readable and (entry.isQuestHeader or entry.questObjective) then
             local isHeader = entry.isQuestHeader
             local fontSize = settings.fontSize + (isHeader and 2 or 1)
             row.label:SetFont(STANDARD_TEXT_FONT, fontSize, "")
@@ -328,8 +445,10 @@ local function Render(panel)
             end
         end
         row:SetHeight(actualHeight)
-        row.icon:ClearAllPoints()
-        row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((actualHeight - Snap(16, pixel)) / 2, pixel))
+        if not tracker then
+            row.icon:ClearAllPoints()
+            row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((actualHeight - Snap(16, pixel)) / 2, pixel))
+        end
         renderedHeight = renderedHeight + actualHeight + (readable and Snap(2, pixel) or gap)
         row:Show()
     end
@@ -389,6 +508,8 @@ local function AddSettings(panel)
     local controls = {}
     for _, spec in ipairs({
         { key = "content", label = text.content, kind = LEM.SettingType.Dropdown, default = "preview" },
+        { key = "questTracker", label = text.questTracker, kind = LEM.SettingType.Checkbox, default = true },
+        { key = "questEvents", label = text.questEvents, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questReadable", label = text.questReadable, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAuto", label = text.questAuto, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAll", label = text.questAll, kind = LEM.SettingType.Checkbox, default = true },
@@ -415,6 +536,8 @@ local function AddSettings(panel)
             hidden = function(layoutName)
                 local settings = Settings(id, layoutName)
                 if key == "rowCount" then return settings.content ~= "preview" end
+                if key == "questTracker" then return settings.content ~= "quests" or not settings.questReadable end
+                if key == "questEvents" then return settings.content ~= "quests" or not settings.questReadable or not settings.questTracker end
                 if key == "questReadable" or key == "questAuto" or key == "questObjectives" or key == "questDetails" or key == "questColors" or key == "questHeight" then return settings.content ~= "quests" end
                 if key == "questAll" then return settings.content ~= "quests" or not settings.questAuto end
                 if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto or settings.questAll end
@@ -493,7 +616,11 @@ function addon.InitializePanels()
             Render(panel)
         end)
         panel.header:SetScript("OnEnter", function() panel.title:SetTextColor(1, 1, 1) end)
-        panel.header:SetScript("OnLeave", function() panel.title:SetTextColor(1, 0.82, 0) end)
+        panel.header:SetScript("OnLeave", function()
+            local settings = Settings(definition.id)
+            local tracker = settings.content == "quests" and settings.questReadable and settings.questTracker
+            panel.title:SetTextColor(1, tracker and 1 or 0.82, tracker and 1 or 0)
+        end)
         panels[#panels + 1] = panel
         local default = { point = "TOPRIGHT", x = definition.x, y = definition.y }
         LEM:AddFrame(panel, function(_, layoutName, point, x, y)
@@ -508,6 +635,9 @@ function addon.InitializePanels()
     local events = CreateFrame("Frame")
     events:RegisterEvent("UI_SCALE_CHANGED")
     events:RegisterEvent("DISPLAY_SIZE_CHANGED")
+    events:RegisterEvent("AREA_POIS_UPDATED")
+    events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+    events:RegisterEvent("PLAYER_ENTERING_WORLD")
     for _, event in ipairs({ "PLAYER_MONEY", "CURRENCY_DISPLAY_UPDATE", "SKILL_LINES_CHANGED", "TRADE_SKILL_LIST_UPDATE", "TRAIT_CONFIG_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "SPELLS_CHANGED", "QUEST_LOG_UPDATE", "QUEST_WATCH_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_DATA_LOAD_RESULT", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN", "SUPER_TRACKING_CHANGED", "SUPER_TRACKING_PATH_UPDATED", "QUEST_POI_UPDATE" }) do
         events:RegisterEvent(event)
     end

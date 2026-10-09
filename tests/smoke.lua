@@ -80,7 +80,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -161,7 +161,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -333,7 +333,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -370,6 +370,7 @@ local openedQuest
 function QuestMapFrame_OpenToQuestDetails(id) openedQuest = id end
 first = persistedAddon.panels[1]
 settings = FunelQOLCharDB.layouts.Modern.panel1
+SetSetting(first, "questTracker", false)
 SetSetting(first, "content", "quests")
 SetSetting(first, "questReadable", false)
 assert(settings.questAuto and first.rows[1].data.questID == 101 and first.rows[1].data.valueText == "70% · 1 / 2")
@@ -644,3 +645,116 @@ for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
     end
 end
 print("PASS: money remains single-line and within its reserved bounds, zero-offset coins, all border styles, panel widths, font sizes and changing denominations.")
+
+-- Reference tracker: continuous surface, independently folded sections and map events.
+function methods:SetAtlas(atlas) self.atlas = atlas end
+Enum.UIMapType = { World = 1, Continent = 2, Zone = 3 }
+local maps = {
+    [100] = { name = "Khaz Algar", mapType = 2, parentMapID = 1 },
+    [160] = { name = "Isle of Dorn", mapType = 3, parentMapID = 100 },
+    [161] = { name = "The Ringing Deeps", mapType = 3, parentMapID = 100 },
+}
+C_Map = { GetBestMapForUnit = function() return 160 end, GetMapInfo = function(id) return maps[id] end }
+C_TaskQuest = { GetQuestZoneID = function() return 160 end }
+C_QuestLog.GetHeaderIndexForQuest = function() return 999 end
+local previousInfo = C_QuestLog.GetInfo
+C_QuestLog.GetInfo = function(id) if id == 999 then return { title = "Isle of Dorn", isHeader = true } end; return previousInfo(id) end
+C_QuestLog.IsWorldQuest = function(id) return id == 214 end
+local eventInfos = {
+    [1] = { name = "Awakening the Machine", description = "Defend the machine.", linkedUiMapID = 161, atlasName = "poi-workorders", isCurrentEvent = true },
+    [2] = { name = "Theater Troupe", isCurrentEvent = true },
+    [3] = { name = "Inactive event", isCurrentEvent = false },
+    [4] = { name = "Locked event", isCurrentEvent = true, isLocked = true },
+}
+C_AreaPoiInfo = {
+    GetEventsForMap = function(id) return id == 160 and { 1, 3, 4 } or { 1, 2 } end,
+    GetAreaPOIInfo = function(_, id) return eventInfos[id] end,
+}
+local openedMap
+function OpenWorldMap(id) openedMap = id end
+SetSetting(first, "width", 320)
+settings.title = first.definition.title
+SetSetting(first, "fontSize", 12)
+SetSetting(first, "content", "quests")
+SetSetting(first, "questTracker", true)
+SetSetting(first, "questReadable", true)
+SetSetting(first, "questEvents", true)
+SetSetting(first, "questAll", true)
+local function FindTrackerRow(predicate)
+    for _, row in ipairs(first.rows) do if row.shown and predicate(row.data) then return row end end
+end
+local sectionKeys = {}
+local questCount, eventCount = 0, 0
+for _, row in ipairs(first.rows) do
+    if row.shown then
+        assert(not row.border.shown, "Continuous tracker still draws per-row borders")
+        if row.data.trackerSection then
+            sectionKeys[row.data.trackerSection] = true
+            assert(row.background.shown and row.trackerLine.shown)
+        elseif row.data.isQuestHeader then
+            assert(not row.background.shown and row.icon.shown and row.meta.shown)
+            assert(row.meta.text:find("|cff4da6e6", 1, true), "Zone lacks its blue text hierarchy")
+            assert(row.label.point[2] == row.meta.point[2] and row.label.point[2] >= 35)
+            if row.data.questID then questCount = questCount + 1 else eventCount = eventCount + 1 end
+        end
+    end
+end
+assert(sectionKeys.campaign and sectionKeys.quests and sectionKeys.world and sectionKeys.events)
+assert(questCount == 14 and eventCount == 2, "Quest lost or inactive/duplicate/locked event shown")
+assert(first.background.shown and first.border.shown and not first.header.border.shown)
+assert(first.title.text == persistedAddon.panelText.trackerTitle)
+local ready = FindTrackerRow(function(data) return data.questID == 202 and data.isQuestHeader end)
+assert(ready.label.textColor[2] == 1 and ready.label.textColor[1] < 0.5)
+local handInRow = FindTrackerRow(function(data) return data.name:find("Deliver the Plowhead", 1, true) end)
+assert(handInRow.label.text:sub(1, 2) ~= "- ", "Hand-in instructions are rendered as unfinished objectives")
+local event = FindTrackerRow(function(data) return data.eventID == 1 and data.isQuestHeader end)
+assert(event.icon.atlas == "poi-workorders" and event.meta.text:find("The Ringing Deeps", 1, true))
+event.scripts.OnClick(event); assert(openedMap == 161)
+combat = true; openedMap = nil; event.scripts.OnClick(event); assert(not openedMap); combat = false
+local campaignSection = FindTrackerRow(function(data) return data.trackerSection == "campaign" end)
+LEM.callbacks.enter(); campaignSection.scripts.OnClick(campaignSection)
+assert(not settings.questSections.campaign, "Editing unexpectedly folds tracker sections")
+LEM.callbacks.exit()
+campaignSection.scripts.OnClick(campaignSection)
+assert(settings.questSections.campaign and not FindTrackerRow(function(data) return data.questID == 201 end))
+assert(FindTrackerRow(function(data) return data.questID == 202 end), "Folding campaign hides ordinary quests")
+LEM.callbacks.create("TrackerCopy", nil, LEM.active)
+settings.questSections.campaign = false
+assert(FunelQOLCharDB.layouts.TrackerCopy.panel1.questSections.campaign, "Section state is not copied independently")
+persistedAddon.RefreshPanels()
+for _, key in ipairs({ "campaign", "quests", "world", "events" }) do
+    local section = FindTrackerRow(function(data) return data.trackerSection == key end)
+    section.scripts.OnClick(section)
+end
+assert(first.scrollMaximum == 0 and not first.scrollHint.shown, "Folded sections leave obsolete scroll space")
+settings.questSections = {}
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    assert(first.border.shown and not first.questGroups[1].shown)
+end
+SetSetting(first, "questEvents", false)
+assert(not FindTrackerRow(function(data) return data.trackerSection == "events" end))
+SetSetting(first, "questEvents", true)
+local savedWatches, savedWorldWatches = watches, worldWatches
+watches, worldWatches = {}, {}
+persistedAddon.RefreshPanels()
+assert(FindTrackerRow(function(data) return data.trackerSection == "events" end), "Events require a watched quest")
+assert(not FindTrackerRow(function(data) return data.trackerSection == "quests" end), "Empty quest section is still shown")
+C_AreaPoiInfo = nil
+persistedAddon.RefreshPanels()
+assert(not FindTrackerRow(function(data) return data.trackerSection == "events" end), "Missing event API does not degrade gracefully")
+assert(first.rows[1].data.name == persistedAddon.panelText.questEmpty and not first.rows[2].shown)
+watches, worldWatches = savedWatches, savedWorldWatches
+persistedAddon.RefreshPanels()
+SetSetting(first, "questTracker", false)
+assert(not first.background.shown and first.questGroups[1].shown)
+SetSetting(first, "questTracker", true)
+SetSetting(first, "content", "currencies")
+assert(not first.background.shown and first.rows[1].border.shown)
+for _, row in ipairs(first.rows) do
+    if row.shown then
+        assert(not row.trackerLine or not row.trackerLine.shown)
+        assert(not row.trackerAccent or not row.trackerAccent.shown)
+    end
+end
+print("PASS: continuous tracker surface, campaign/quest/world/event sections, blue zones, quest icons and completion hierarchy, live deduplicated map events, map click guards, folding/edit guards, saved layout isolation, all themes and renderer switching.")

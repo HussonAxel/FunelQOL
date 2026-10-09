@@ -104,6 +104,7 @@ function addon.GetQuestRows(settings)
             local objectives = C_QuestLog.GetQuestObjectives(id)
             local complete, failed = C_QuestLog.IsComplete(id), C_QuestLog.IsFailed(id)
             local details, color, badge = Metadata(id)
+            local section, zone, icon = addon.GetQuestDisplay(id, complete)
             local finished, progress = 0, 0
             for _, objective in ipairs(objectives or {}) do
                 if objective.finished then finished = finished + 1 end
@@ -118,6 +119,7 @@ function addon.GetQuestRows(settings)
                 valueText = status, questID = id, value = not failed and progress or 0, maximum = not failed and progress and 100 or 0,
                 questTitle = quest.name, questDetails = details, questBadge = badge, questProgressText = progressText,
                 isQuestHeader = true, questComplete = complete, questFailed = failed,
+                questSection = section, questZone = zone, questIcon = icon,
                 labelColor = complete and { 0.3, 1, 0.3 } or { 1, 0.82, 0 },
                 borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true }
             local function Detail(name, valueText, value, maximum, autoComplete)
@@ -125,7 +127,7 @@ function addon.GetQuestRows(settings)
                 rows[#rows + 1] = { name = "  " .. name, valueText = valueText or "", value = value, maximum = maximum,
                     questID = id, questTitle = quest.name, questDetails = details, questProgressText = progressText,
                     borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true,
-                    questObjective = true, progressBar = maximum and maximum > 0, autoComplete = autoComplete, labelColor = complete and { 0.3, 1, 0.3 } or { 1, 1, 1 } }
+                    questObjective = true, directive = true, progressBar = maximum and maximum > 0, autoComplete = autoComplete, labelColor = complete and { 0.3, 1, 0.3 } or { 1, 1, 1 } }
             end
             if settings.questObjectives and complete then
                 local index = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)

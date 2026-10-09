@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.4.4 provides two configurable panels with live currencies, professions, selected talents, quest objectives, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.5.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -55,6 +55,16 @@ Money uses coins sized to the value font, with no texture offsets and an inset f
 
 Currency, money, skill, specialization, and talent events refresh the displayed values. The addon does not alter Blizzard's existing frames or create protected action buttons. Buffs, pets, scenarios, and achievement objectives are not connected yet.
 
+### Sectioned objective tracker
+
+Panels using **Tracked quests** now default to a continuous dark surface with a single outer border, inspired by the supplied tracker reference. It separates **Campaign**, **Quests**, **World Quests**, and **Events**; empty sections disappear. Click a section heading to fold it independently. Fold states are saved per panel and Blizzard layout. Headings do not fold while Edit Mode is active.
+
+Quest titles show an icon and use yellow for active quests or green for ready quests. The journal header or task map provides a blue zone line when available. Objectives remain white/green, with indented counters and thin progress bars; hand-in/waypoint instructions do not get an unfinished-objective dash. Relevant category badges and nonzero progress remain visible with quest details enabled. Category colors appear as a slim accent beside the quest title in this presentation.
+
+**Show map events** uses Blizzard's dedicated `C_AreaPoiInfo.GetEventsForMap` list on the current zone and its parent maps, up to the continent. It shows current, unlocked events with their atlas icon, zone and available description; duplicate pins are removed. Clicking an event opens its map outside combat. It does not list all worldwide events or reproduce event widget progress, scenario criteria, achievements or quest-item action buttons. The Blizzard tracker still supplies those features.
+
+In `/funelqol edit`, select the quest panel to toggle **Sectioned tracker presentation** (French: **Présentation du suivi en sections**) or **Show map events**. Disable the sectioned presentation to recover framed quest groups; disable **Group quest presentation** to recover separate objective rows. Width, font size, opacity, maximum tracker height and Pixels/Ayije/Blizzard borders remain configurable.
+
 ## Files and development
 
 - `FunelQOL.toc`: addon metadata, supported interface version, saved variable declaration, and Lua file load order.
@@ -62,6 +72,7 @@ Currency, money, skill, specialization, and talent events refresh the displayed 
 - `PanelPreview.lua`: localized labels and static preview rows.
 - `Content.lua`: live data providers and ordered selections.
 - `QuestContent.lua`: tracked quest/world quest catalog and live objective rows.
+- `TrackerContent.lua`: quest display metadata, section grouping/folding and current map events.
 - `ContentEditor.lua`: native row editor for selections, ordering, and custom text.
 - `Panels.lua`: shared panel rendering and per-layout Edit Mode integration.
 - `Media.lua`: local artwork catalog.
@@ -133,3 +144,5 @@ To import AyijeUI alone, run `.\tools\Import-AyijeMedia.ps1`. The catalog lists 
 API implementation references: [Blizzard currency documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/CurrencyInfoDocumentation.lua), [traits documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/SharedTraitsDocumentation.lua), and [Blizzard professions book](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_ProfessionsBook/Blizzard_ProfessionsBook.lua).
 
 Quest references: [Blizzard quest API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLogDocumentation.lua) and [Blizzard quest objective tracker](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_ObjectiveTracker/Blizzard_QuestObjectiveTracker.lua).
+
+Map-event reference: [Blizzard area POI API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/AreaPoiInfoDocumentation.lua).
