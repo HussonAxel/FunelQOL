@@ -2,7 +2,7 @@
 ## Title: FunelQOL
 ## Notes: A personal quality-of-life addon for World of Warcraft Retail.
 ## Author: Axel Husson
-## Version: 0.2.2
+## Version: 0.3.0
 ## Dependencies: Blizzard_EditMode
 ## SavedVariables: FunelQOLDB
 ## SavedVariablesPerCharacter: FunelQOLCharDB
@@ -11,5 +11,7 @@ Libs\LibEditMode\namespaced.lua
 Libs\LibEditMode\embed.xml
 Media.lua
 PanelPreview.lua
+Content.lua
+ContentEditor.lua
 Panels.lua
 Core.lua

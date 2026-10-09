@@ -36,11 +36,14 @@ local function Settings(id, layoutName)
         point = "TOPRIGHT", x = definition.x, y = definition.y,
         title = definition.title, width = 260, scale = 1, enabled = true,
         collapsed = false, style = "blizzard", opacity = 0.94,
-        fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true,
+        fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
     end
+    local validContent = false
+    for _, kind in ipairs(addon.contentTypes) do if settings.content == kind.value then validContent = true end end
+    if not validContent then settings.content = "preview" end
     if not styles[settings.style] then settings.style = "blizzard" end
     local anchors = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true, RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
     if not anchors[settings.point] then settings.point = "TOPRIGHT" end
@@ -120,8 +123,14 @@ local function CreateRow(panel)
     row:SetScript("OnEnter", function(self)
         local data = self.data
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText(data.name, 1, 0.82, 0)
-        GameTooltip:AddLine(text.preview, 1, 1, 1)
+        if data.currencyID then
+            GameTooltip:SetCurrencyByID(data.currencyID)
+        elseif data.spellID then
+            GameTooltip:SetSpellByID(data.spellID)
+        else
+            GameTooltip:SetText(data.name, 1, 0.82, 0)
+            if data.valueText and data.valueText ~= "" then GameTooltip:AddLine(data.valueText, 1, 1, 1) end
+        end
         GameTooltip:Show()
         self.border:SetBackdropBorderColor(0.85, 0.72, 0.38, 1)
     end)
@@ -157,7 +166,7 @@ local function Render(panel)
     panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
     panel.editModeName = "FunelQOL · " .. settings.title
     panel.arrow:SetText(settings.collapsed and "+" or "-")
-    local data = addon.GetPreviewRows(settings.rowCount)
+    local data = addon.GetPanelRows(settings)
     for index, entry in ipairs(data) do
         local row = panel.rows[index]
         if not row then row = CreateRow(panel); panel.rows[index] = row end
@@ -222,6 +231,7 @@ function addon.SetPanelTitle(index, title)
 end
 
 local function ApplyLayout(layoutName)
+    addon.CloseContentEditor()
     activeLayout = layoutName or LEM:GetActiveLayoutName() or "Modern"
     for _, panel in ipairs(panels) do
         local settings = Settings(panel.definition.id)
@@ -235,6 +245,7 @@ local function AddSettings(panel)
     local id = panel.definition.id
     local controls = {}
     for _, spec in ipairs({
+        { key = "content", label = text.content, kind = LEM.SettingType.Dropdown, default = "preview" },
         { key = "enabled", label = text.enabled, kind = LEM.SettingType.Checkbox, default = true },
         { key = "collapsed", label = text.collapsed, kind = LEM.SettingType.Checkbox, default = false },
         { key = "width", label = text.width, kind = LEM.SettingType.Slider, default = 260, min = 180, max = 420, step = 10 },
@@ -250,15 +261,25 @@ local function AddSettings(panel)
         controls[#controls + 1] = {
             name = spec.label, kind = spec.kind, default = spec.default,
             minValue = spec.min, maxValue = spec.max, valueStep = spec.step,
-            values = key == "style" and { { text = "Blizzard", value = "blizzard" }, { text = "Ayije", value = "ayije" }, { text = "Pixels", value = "pixels" } } or nil,
+            hidden = key == "rowCount" and function(layoutName) return Settings(id, layoutName).content ~= "preview" end or nil,
+            values = key == "content" and addon.contentTypes or key == "style" and { { text = "Blizzard", value = "blizzard" }, { text = "Ayije", value = "ayije" }, { text = "Pixels", value = "pixels" } } or nil,
             get = function(layoutName) return Settings(id, layoutName)[key] end,
             set = function(layoutName, value)
+                if key == "content" then addon.CloseContentEditor() end
                 Settings(id, layoutName)[key] = value
                 Render(panel)
             end,
         }
     end
     LEM:AddFrameSettings(panel, controls)
+    LEM:AddFrameSettingsButtons(panel, { { text = text.configure, click = function()
+        addon.OpenContentEditor(Settings(id), function() Render(panel) end)
+    end } })
+end
+
+function addon.ConfigurePanel(index)
+    local panel = panels[index]
+    if panel then addon.OpenContentEditor(Settings(panel.definition.id), function() Render(panel) end) end
 end
 
 function addon.InitializePanels()
@@ -269,7 +290,7 @@ function addon.InitializePanels()
 
     LEM:RegisterCallback("layout", ApplyLayout)
     LEM:RegisterCallback("enter", function() editing = true; addon.RefreshPanels() end)
-    LEM:RegisterCallback("exit", function() editing = false; addon.RefreshPanels() end)
+    LEM:RegisterCallback("exit", function() addon.CloseContentEditor(); editing = false; addon.RefreshPanels() end)
     LEM:RegisterCallback("create", function(name, _, sourceName)
         if sourceName and FunelQOLCharDB.layouts[sourceName] then
             FunelQOLCharDB.layouts[name] = Copy(FunelQOLCharDB.layouts[sourceName])
@@ -324,6 +345,9 @@ function addon.InitializePanels()
     local events = CreateFrame("Frame")
     events:RegisterEvent("UI_SCALE_CHANGED")
     events:RegisterEvent("DISPLAY_SIZE_CHANGED")
+    for _, event in ipairs({ "PLAYER_MONEY", "CURRENCY_DISPLAY_UPDATE", "SKILL_LINES_CHANGED", "TRADE_SKILL_LIST_UPDATE", "TRAIT_CONFIG_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "SPELLS_CHANGED" }) do
+        events:RegisterEvent(event)
+    end
     events:SetScript("OnEvent", addon.RefreshPanels)
     -- UIParent:SetScale can be called directly by UI addons without a CVar event.
     hooksecurefunc(UIParent, "SetScale", addon.RefreshPanels)

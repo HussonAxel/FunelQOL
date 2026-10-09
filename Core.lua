@@ -1,6 +1,6 @@
 local addonName, addon = ...
 
-addon.version = "0.2.2"
+addon.version = "0.3.0"
 
 local function Print(message)
     DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffFunelQOL|r: " .. message)
@@ -10,7 +10,8 @@ local function ShowHelp()
     Print("/funelqol status - Show addon status.")
     Print("/funelqol greeting - Toggle the login greeting.")
     Print("/funelqol edit - Open Blizzard Edit Mode for panel settings.")
-    Print("/funelqol title <1|2> <text> - Rename a preview panel in the current layout.")
+    Print("/funelqol title <1|2> <text> - Rename a panel in the current layout.")
+    Print("/funelqol content <1|2> - Configure panel rows.")
     Print("/funelqol help - Show these commands.")
 end
 
@@ -26,6 +27,9 @@ local function HandleCommand(message)
         else
             Print("Usage: /funelqol title <1|2> <short title>")
         end
+    elseif action and string.lower(action) == "content" then
+        local panelID = string.match(arguments, "^([12])$")
+        if panelID then addon.ConfigurePanel(tonumber(panelID)) else Print("Usage: /funelqol content <1|2>") end
     elseif command == "edit" then
         if InCombatLockdown() then
             Print("Edit Mode is unavailable in combat.")

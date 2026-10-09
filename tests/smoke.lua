@@ -69,9 +69,10 @@ local LEM = { callbacks = {}, settings = {}, positions = {}, active = "Modern", 
 function LEM:RegisterCallback(event, callback) self.callbacks[event] = callback end
 function LEM:GetActiveLayoutName() return self.active end
 function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
+function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -152,7 +153,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -206,3 +207,130 @@ OnGrid(first.width, (768 / physicalHeight) / first:GetEffectiveScale())
 assert(UIParent.scaleHook, "Direct UI scale changes are not observed")
 print("PASS: initialization, preview controls, independent titles, collapse, visibility, layout switching/copy/rename/delete, and combat guard.")
 print("PASS: centered Pixels/Ayije borders, corner clearance, fill tint, and pixel alignment at 72 style/resolution/UI/panel-scale combinations.")
+-- Live content providers, ordered selections and the native editor.
+function methods:GetText() return self.text or "" end
+function methods:OverrideText(value) self.defaultText = value end
+function methods:SetupMenu(callback) self.menu = callback end
+function methods:ClearFocus() self.focus = false end
+for _, name in ipairs({ "SetAutoFocus", "SetMaxLetters", "SetBackdropColor" }) do methods[name] = function() end end
+local quantity, money = 12, 50000
+C_CurrencyInfo = {
+    GetCoinTextureString = function(value) return tostring(value) .. " copper" end,
+    GetCurrencyListSize = function() return 3 end,
+    GetCurrencyListInfo = function(index) return index == 1 and { isHeader = true } or { name = index == 2 and "Token" or "Season" } end,
+    GetCurrencyListLink = function(index) return tostring(index) end,
+    GetCurrencyIDFromLink = tonumber,
+    GetCurrencyInfo = function(id)
+        if id ~= 2 and id ~= 3 and id ~= 4 then return nil end
+        return { name = id == 2 and "Token" or id == 3 and "Season" or "Hidden currency", quantity = quantity, maxQuantity = 100,
+            useTotalEarnedForMaxQty = id == 3, iconFileID = 134400 }
+    end,
+}
+function GetMoney() return money end
+function GetProfessions() return 1, nil, nil, 4, 5 end
+function GetProfessionInfo(index) return "Profession" .. index, 134400, 25, 100, 0, 0, index * 10, 0, nil, nil, "Expansion" .. index end
+local selectedTalent = true
+C_ClassTalents = { GetActiveConfigID = function() return 1 end }
+C_Traits = {
+    GetConfigInfo = function() return { treeIDs = { 1 } } end,
+    GetTreeNodes = function() return { 10, 20, 30 } end,
+    GetNodeInfo = function(_, id) return { activeEntry = { entryID = id, rank = id == 30 and 0 or 1 }, subTreeActive = id == 10 and selectedTalent or id ~= 10 } end,
+    GetEntryInfo = function(_, id) return { definitionID = id, maxRanks = 2 } end,
+    GetDefinitionInfo = function(id) return { spellID = id * 10 } end,
+}
+C_Spell = { GetSpellInfo = function(id) return { name = "Talent" .. id, iconID = 134400 } end }
+SetSetting(first, "content", "currencies")
+local settings = FunelQOLCharDB.layouts.Modern.panel1
+settings.selections.currencies = { 3, -1, 2, 0, 0, 0, 0, 0 }
+newAddon.RefreshPanels()
+assert(first.rows[1].data.name == "Season" and first.rows[1].data.maximum == 0 and first.rows[1].data.valueText == "12")
+assert(first.rows[2].data.valueText == "50000 copper" and first.rows[3].data.maximum == 100)
+local dataEvents
+for _, frame in ipairs(frames) do if frame.events.CURRENCY_DISPLAY_UPDATE then dataEvents = frame end end
+assert(dataEvents and dataEvents.events.PLAYER_MONEY and dataEvents.events.TRAIT_CONFIG_UPDATED)
+quantity, money = 35, 75000
+dataEvents.scripts.OnEvent(dataEvents, "CURRENCY_DISPLAY_UPDATE")
+assert(first.rows[1].data.valueText == "35" and first.rows[2].data.valueText == "75000 copper")
+SetSetting(first, "content", "professions")
+assert(first.rows[1].data.name == "Expansion1" and first.rows[2].data.name == "Expansion4" and first.rows[3].data.name == "Expansion5", "Nil profession slots skipped later professions")
+SetSetting(first, "content", "talents")
+assert(first.rows[1].data.spellID == 100 and first.rows[2].data.spellID == 200 and not first.rows[3].shown)
+selectedTalent = false
+newAddon.RefreshPanels()
+assert(first.rows[1].data.spellID == 200 and not first.rows[2].shown, "Inactive hero subtree still displayed")
+SetSetting(first, "content", "custom")
+settings.customRows = { { name = "Notes", valueText = "Raid 20:30" }, nil, { name = "Bank", valueText = "Materials" } }
+newAddon.RefreshPanels()
+assert(first.rows[1].data.name == "Notes" and first.rows[2].data.name == "Bank" and not first.rows[1].bar.shown)
+local function FindEditor()
+    for index = #frames, 1, -1 do
+        local frame = frames[index]
+        if frame.width == 560 and frame.height == 414 then return frame end
+    end
+end
+SlashCmdList.FUNELQOL("content 1")
+local editor = FindEditor()
+assert(editor and editor.shown)
+local function EditorButton(label, y)
+    for _, frame in ipairs(frames) do
+        if frame.parent == editor and frame.text == label and frame.point[3] == y then return frame end
+    end
+    error("Missing editor button " .. label)
+end
+EditorButton("↓", -92).scripts.OnClick()
+assert(settings.customRows[1] == nil and settings.customRows[2].name == "Notes")
+local nameBox
+for _, frame in ipairs(frames) do
+    if frame.parent == editor and frame.point and frame.point[2] == 48 and frame.point[3] == -92 and frame.scripts.OnTextChanged then nameBox = frame end
+end
+nameBox:SetText("Custom first")
+nameBox.scripts.OnTextChanged(nameBox, true)
+assert(first.rows[1].data.name == "Custom first")
+EditorButton("×", -92).scripts.OnClick()
+assert(settings.customRows[1] == nil)
+local count = #frames
+SlashCmdList.FUNELQOL("content 1")
+assert(#frames == count, "Reopening the editor leaked frames")
+SetSetting(first, "content", "currencies")
+assert(not editor.shown)
+SlashCmdList.FUNELQOL("content 1")
+editor = FindEditor()
+local dropdown
+for _, frame in ipairs(frames) do if frame.parent == editor and frame.menu then dropdown = frame; break end end
+local choices = {}
+local root = { SetScrollMode = function() end, CreateRadio = function(_, name, selected, click) choices[name] = click end }
+dropdown.menu(dropdown, root)
+choices.Token()
+assert(settings.selections.currencies[1] == 2 and first.rows[1].data.name == "Token")
+local idBox
+for _, frame in ipairs(frames) do
+    if frame.parent == editor and frame.point and frame.point[2] == 48 and frame.point[3] == -380 then idBox = frame end
+end
+idBox:SetText("4")
+EditorButton("Ajouter un ID monnaie", -380).scripts.OnClick()
+assert(settings.selections.currencies[4] == 4 and first.rows[4].data.name == "Hidden currency")
+LEM.active = "Classic"; LEM.callbacks.layout("Classic")
+assert(not editor.shown and newAddon.panels[1].rows[1].data.name == "Aperçu 1")
+LEM.active = "Modern"; LEM.callbacks.layout("Modern")
+assert(first.rows[1].data.name == "Token" and first.rows[4].data.name == "Hidden currency")
+LEM.callbacks.create("ContentCopy", 4, "Modern")
+local copy = FunelQOLCharDB.layouts.ContentCopy.panel1
+copy.selections.currencies[1] = 0
+assert(settings.selections.currencies[1] == 2 and copy.customRows ~= settings.customRows)
+settings.selections.currencies = { 0, 0, 0, 0, 0, 0, 0, 0 }
+newAddon.RefreshPanels()
+assert(first.rows[1].data.name == newAddon.panelText.empty and not first.rows[2].shown)
+settings.content = "invalid"
+newAddon.RefreshPanels()
+assert(settings.content == "preview")
+settings.content = "custom"
+local persistedAddon = { LibEditMode = LEM }
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+    assert(loadfile(file))("FunelQOL", persistedAddon)
+end
+local persistedCore = frames[#frames]
+persistedCore.scripts.OnEvent(persistedCore, "ADDON_LOADED", "FunelQOL")
+persistedCore.scripts.OnEvent(persistedCore, "PLAYER_LOGIN")
+assert(persistedAddon.panels[1].rows[1].data.name == "Notes" and persistedAddon.panels[1].rows[2].data.name == "Bank")
+assert(persistedAddon.panels[2].rows[1].data.name == "Aperçu 1")
+print("PASS: live currencies, seasonal caps, money events, sparse professions, selected talents, custom rows, native editor selection/reorder/remove/reuse, manual IDs, layout isolation and deep copies.")
