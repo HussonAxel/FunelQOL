@@ -48,6 +48,7 @@ local function Metadata(id)
     if info and info.level and info.level > 0 then labels[#labels + 1] = (fr and "Niv. " or "Lv. ") .. info.level end
     return table.concat(labels, " · "), color
 end
+addon.GetQuestMetadata = Metadata
 
 local function ObjectiveProgress(id, objective)
     if objective.finished then return 1 end
@@ -56,6 +57,16 @@ local function ObjectiveProgress(id, objective)
         return math.max(0, math.min(1, (objective.numFulfilled or 0) / objective.numRequired))
     end
     return 0
+end
+
+function addon.GetQuestProgress(id)
+    if C_QuestLog.IsComplete(id) then return 100 end
+    if C_QuestLog.IsFailed(id) then return nil end
+    local objectives = C_QuestLog.GetQuestObjectives(id)
+    if not objectives or #objectives == 0 then return nil end
+    local progress = 0
+    for _, objective in ipairs(objectives) do progress = progress + ObjectiveProgress(id, objective) end
+    return progress / #objectives * 100
 end
 
 function addon.GetQuestCatalog()

@@ -1,6 +1,6 @@
 local addonName, addon = ...
 
-addon.version = "0.4.1"
+addon.version = "0.5.0"
 
 local function Print(message)
     DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffFunelQOL|r: " .. message)
@@ -12,6 +12,7 @@ local function ShowHelp()
     Print("/funelqol edit - Open Blizzard Edit Mode for panel settings.")
     Print("/funelqol title <1|2> <text> - Rename a panel in the current layout.")
     Print("/funelqol content <1|2> - Configure panel rows.")
+    Print("/funelqol tracker - Configure the Blizzard objective tracker.")
     Print("/funelqol help - Show these commands.")
 end
 
@@ -30,6 +31,8 @@ local function HandleCommand(message)
     elseif action and string.lower(action) == "content" then
         local panelID = string.match(arguments, "^([12])$")
         if panelID then addon.ConfigurePanel(tonumber(panelID)) else Print("Usage: /funelqol content <1|2>") end
+    elseif command == "tracker" then
+        addon.OpenTrackerOptions()
     elseif command == "edit" then
         if InCombatLockdown() then
             Print("Edit Mode is unavailable in combat.")
@@ -71,6 +74,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddonName)
         self:UnregisterEvent("ADDON_LOADED")
     elseif event == "PLAYER_LOGIN" then
         addon.InitializePanels()
+        addon.InitializeNativeTracker()
         if addon.db and addon.db.showGreeting then
             Print("Loaded v" .. addon.version .. ". Type /funelqol for help.")
         end

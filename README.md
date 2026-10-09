@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.4.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.5.0 customizes the existing Blizzard quest objective tracker and provides two configurable panels for currencies, professions, talents, and custom text. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -19,10 +19,23 @@ When editing existing Lua files, use `/reload` to load changes.
 | `/funelqol status` | Show the version and login greeting setting. |
 | `/funelqol greeting` | Toggle the greeting shown on login and UI reload. |
 | `/funelqol edit` | Open Blizzard Edit Mode (outside combat). |
+| `/funelqol tracker` | Configure the existing Blizzard quest objective tracker. |
 | `/funelqol content <1|2>` | Open the row editor for a panel in the current layout. |
 | `/funelqol title <1|2> <text>` | Rename a panel in the current layout, e.g. `/funelqol title 1 Mon menu`. |
 
 The greeting setting is account-wide and stored by WoW in `FunelQOLDB`. WoW writes saved settings on logout or UI reload.
+
+## Existing Blizzard objective tracker
+
+Quest customization now applies to the **existing Blizzard tracker** by default. Run `/reload` after updating, then `/funelqol tracker` to configure it. The options enable/disable customization, show/hide quest details and overall progress, toggle category border colors, and select **Blizzard**, **Pixels**, or **Ayije** borders (import the local artwork first for the latter two).
+
+Quest, campaign quest, and world quest blocks retain their native objectives, progress bars, timers, POI icons, item/group buttons, menus and click behavior. FunelQOL appends the category/level and progress to the existing header using Blizzard's header measurement before its layout runs, then draws a mouse-transparent border around that same block. It does not create a second quest tracker or change objective ordering. Move, resize, or collapse the objective tracker using **Blizzard Edit Mode**.
+
+Customization settings are saved per character in `FunelQOLCharDB.tracker`. Position and size remain managed by Blizzard's layouts. Changes wait until combat ends before touching tracker visuals. Turning customization off causes Blizzard to rebuild its original titles and hides the added borders.
+
+Existing FunelQOL panels configured as **Tracked quests** are hidden outside Edit Mode while native customization is enabled, preventing duplicate quest displays. They remain available in Edit Mode for repurposing, and disabling native customization restores their previous visibility settings. Other content panels continue working. Achievements, scenarios and other non-quest modules are not styled.
+
+This integration follows the retail tracker internals, so validate in game after major client updates and when using another addon that skins the same tracker. Automated mocks verify behavior and combat deferral, not Blizzard taint or final rendering.
 
 ## Panels and Blizzard Edit Mode
 
@@ -45,13 +58,13 @@ Each content type keeps its own selection, so switching to Preview does not eras
 - **Currencies:** current wallet quantity, optional wallet-cap bar, and gold. Seasonal total-earned caps are not displayed as wallet-cap bars. The dropdown reflects the visible Blizzard currency list: expand categories in the character currency tab and reopen the editor to expose more entries. You can also enter a numeric currency ID at the bottom of the editor. Selected currencies remain readable when their category is collapsed.
 - **Professions:** learned professions, including secondary professions, with their reported skill rank and maximum. The expansion skill-line name is used when available.
 - **Selected talents:** a selection of talents from the active configuration, with icon, spell tooltip, and rank. Unselected talents and inactive hero-tree talents are hidden; their selections are retained for when they become active again. This is a read-only display, not a talent loadout switcher.
-- **Tracked quests:** automatically follows up to three watched quests by default, including tracked world quests in watch order. Change **Automatic quest count** (1–8) and **Show quest objectives** in Edit Mode. Quest titles show an overall progress percentage, completed-objective counts, ready-to-turn-in or failed status; objective rows show live counts/progress bars and wrap long text. Hover for the full objectives; click a quest or objective to open quest details outside combat. Choosing, moving, or clearing an entry in **Configure rows** disables automatic tracking and uses your saved manual order (up to eight quests). Enable **Follow tracked quests automatically** to resume automatic tracking. Untracked quests disappear but their manual IDs are retained. Quests must be tracked through Blizzard's quest log; this panel is an additional display. The Blizzard tracker, scenarios, achievements, and quest-item buttons are unchanged.
+- **Tracked quests:** automatically follows up to three watched quests by default, including tracked world quests in watch order. Change **Automatic quest count** (1–8) and **Show quest objectives** in Edit Mode. Quest titles show an overall progress percentage, completed-objective counts, ready-to-turn-in or failed status; objective rows show live counts/progress bars and wrap long text. Hover for the full objectives; click a quest or objective to open quest details outside combat. Choosing, moving, or clearing an entry in **Configure rows** disables automatic tracking and uses your saved manual order (up to eight quests). Enable **Follow tracked quests automatically** to resume automatic tracking. Untracked quests disappear but their manual IDs are retained. Quests must be tracked through Blizzard's quest log; this panel is an additional display. This optional custom panel retains the earlier quest view; use `/funelqol tracker` for the native integration described above.
   Quest details show the API-reported type (Important, Campaign, Daily, Weekly, Recurring, Repeatable, World quest) and level beneath the title. Multiple labels can coexist. Borders are **blue** for daily/weekly/recurring/repeatable quests, **gold** for important quests, and **orange** for campaign quests. Recurrence takes priority over important/campaign border colors, while the text keeps all labels. Header and objective rows share the category color, including Pixels/Ayije appearances. Hover highlights the color and restores it afterward.
 
   Toggle **Show quest details** and **Color borders by quest type** independently in Edit Mode. Full metadata remains in the tooltip with details hidden. Types use Blizzard's quest frequency/important/world flags and campaign ID; unknown data is left unlabeled, and scheduler-reset quests are labeled recurring rather than assumed daily or weekly. The overall percentage is the mean of each objective's completion fraction (binary objectives use 0/100%; progress-bar objectives use their actual percentage). It is an addon summary, not a measure of time remaining or quest-chain completion. Ready-to-turn-in quests use 100% progress.
 - **Custom menu:** up to eight static label/value rows (80 characters per field), such as notes or reminders. These rows do not execute scripts or actions.
 
-Currency, money, skill, specialization, and talent events refresh the displayed values. The addon does not alter Blizzard's existing frames or create protected action buttons. Buffs, pets, scenarios, and achievement objectives are not connected yet.
+Currency, money, skill, specialization, and talent events refresh the displayed values. The custom panels do not create protected action buttons; quest cosmetics on Blizzard frames are handled by the native tracker integration. Buffs, pets, scenarios, and achievement objectives are not connected yet.
 
 ## Files and development
 
@@ -59,6 +72,7 @@ Currency, money, skill, specialization, and talent events refresh the displayed 
 - `Core.lua`: addon namespace, saved setting initialization, login event handling, and slash commands.
 - `PanelPreview.lua`: localized labels and static preview rows.
 - `Content.lua`: live data providers and ordered selections.
+- `NativeTracker.lua`: native Blizzard quest tracker header/border hooks and settings.
 - `QuestContent.lua`: tracked quest/world quest catalog and live objective rows.
 - `ContentEditor.lua`: native row editor for selections, ordering, and custom text.
 - `Panels.lua`: shared panel rendering and per-layout Edit Mode integration.
@@ -79,7 +93,8 @@ New Lua files must be listed in `FunelQOL.toc` in their required load order. Eac
 7. Switch to another Blizzard layout, then return: the original positions and settings must return. Copy and rename a custom layout, then reload and verify the panels.
 8. Toggle a header, rename it with `/funelqol title 1 Mon menu`, then reload: both the title and collapsed state must persist. Adjust text size, row height/count, opacity, and bar visibility.
 9. Choose each content type, configure and reorder entries, change a currency/skill value, then reload and switch layouts to verify persistence. Verify currency and talent tooltips. For quests, track/untrack quests and world quests, complete an objective, test automatic/manual selection and quest detail clicks, verify daily/weekly/important/campaign labels and border colors across styles, then reload and switch layouts.
-10. Select Ayije and Pixels appearances after importing media, and verify borders, bar fills, text alignment, and tooltips in-game.
+10. Open `/funelqol tracker`, test each border style and detail option on the native tracker, test quest items/context menus/timers, move it in Blizzard Edit Mode, then enter/leave combat and disable/re-enable customization. Existing custom quest panels should be hidden outside Edit Mode while native customization is enabled.
+11. Select Ayije and Pixels appearances after importing media, and verify borders, bar fills, text alignment, and tooltips in-game.
 
 The mocked Lua smoke check covers preview settings, live content and updates, seasonal currency caps, sparse profession slots, talent filtering, quest types, category border colors and hover restoration, partial objective progress, quest watch/progress/completion/loading states, wrapping and click guards, row editor selection/order/removal, custom text, reload persistence, layout isolation, hidden-frame recovery, and slash commands:
 
@@ -87,7 +102,7 @@ The mocked Lua smoke check covers preview settings, live content and updates, se
 npm exec --yes --package=fengari-node-cli -- fengari tests/smoke.lua
 ```
 
-It does not run Blizzard's UI or verify visual rendering, dragging, or taint; those require the in-game checks above.
+It also verifies native tracker hooks, header measurement, preserved controls, duplicate suppression, options, pooled block reuse, and combat deferral. It does not run Blizzard's UI or verify visual rendering, dragging, or taint; those require the in-game checks above.
 
 Pixels and Ayije borders use a separate edge-only frame above the fill, centered around the host with mirrored offsets snapped to physical pixels. The Ayije placement matches its native 16-unit edge with an 8-unit exterior offset; this also keeps corners from overlapping on short headers. Panel dimensions, row spacing, and icon geometry are snapped at the panel's effective scale; spacing accounts for each artwork's visible exterior edge. Geometry is recalculated when the UI scale, panel scale, or resolution changes. The regression check exercises 72 combinations of border style, screen resolution, UI scale, and panel scale; final texture rasterization still requires an in-game check.
 

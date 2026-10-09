@@ -249,7 +249,7 @@ local function Render(panel)
         panel:SetPoint(settings.point, UIParent, settings.point,
             settings.x + Snap(left, pixel) - left, settings.y + Snap(top, pixel) - top)
     end
-    panel:SetShown(editing or settings.enabled)
+    panel:SetShown(editing or (settings.enabled and not (settings.content == "quests" and addon.IsNativeTrackerEnabled())))
 end
 
 function addon.RefreshPanels()

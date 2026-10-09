@@ -18,8 +18,13 @@ function methods:SetScale(scale)
     if self.scaleHook then self.scaleHook() end
 end
 function hooksecurefunc(frame, method, callback)
-    assert(method == "SetScale")
-    frame.scaleHook = callback
+    if method == "SetScale" then frame.scaleHook = callback; return end
+    local original = frame[method]
+    frame[method] = function(self, ...)
+        local results = table.pack(original(self, ...))
+        callback(self, ...)
+        return table.unpack(results, 1, results.n)
+    end
 end
 function methods:GetEffectiveScale() return (self.scale or 1) * (self.parent and self.parent:GetEffectiveScale() or 1) end
 function methods:GetLeft() return 137.27 + (self.point and self.point[4] or 0) end
@@ -74,7 +79,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "NativeTracker.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -155,7 +160,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "NativeTracker.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -327,7 +332,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "NativeTracker.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -477,3 +482,100 @@ SetSetting(first, "content", "preview")
 HasColor(first.rows[1], { 0.38, 0.35, 0.29 })
 assert(not first.rows[1].data.questID, "Reused preview row retains quest metadata")
 print("PASS: daily/weekly/important/campaign/recurring/world labels, partial objective progress, metadata tooltips, category colors across all styles, hover restoration, settings and row reuse.")
+-- Native Blizzard blocks keep their own layout and controls; only cosmetics are hooked.
+function methods:GetHeight() return self.height or 14 end
+function methods:SetChecked(value) self.checked = value end
+function methods:GetChecked() return self.checked end
+OBJECTIVE_TRACKER_COLOR = { Header = {} }
+local function NativeModule()
+    local module = { active = {}, dirty = false }
+    function module:GetExistingBlock(id) return self.active[id] end
+    function module:GetBlock(id)
+        local block = self.active[id]
+        if not block then
+            block = CreateFrame("Button", nil, UIParent)
+            block.HeaderText = block:CreateFontString()
+            block.HeaderText:SetWidth(220)
+            function block:SetStringText(fontString, title, fullHeight)
+                fontString:SetText(title)
+                fontString.fullHeight = fullHeight
+                return fontString:GetStringHeight()
+            end
+            function block:SetHeader(title)
+                self.height = self:SetStringText(self.HeaderText, title)
+            end
+            block:SetScript("OnClick", function() end)
+            block.ItemButton = CreateFrame("Button", nil, block)
+            self.active[id] = block
+        end
+        block.id, block.parentModule = id, self
+        block.height = 0
+        return block
+    end
+    function module:LayoutBlock(block) block:SetHeight(block.height); block:Show(); return true end
+    function module:FreeBlock(block) block:Hide(); self.active[block.id] = nil end
+    function module:MarkDirty() self.dirty = true end
+    return module
+end
+QuestObjectiveTracker, CampaignQuestObjectiveTracker, WorldQuestObjectiveTracker = NativeModule(), NativeModule(), NativeModule()
+persistedAddon.InitializeNativeTracker()
+assert(persistedAddon.IsNativeTrackerEnabled() and QuestObjectiveTracker.dirty and CampaignQuestObjectiveTracker.dirty)
+local function Build(module, id)
+    local block = module:GetBlock(id)
+    block:SetHeader("Quest " .. id)
+    block.height = block.height + 24 -- native objective rows follow measured header height
+    assert(module:LayoutBlock(block))
+    return block
+end
+local native = Build(QuestObjectiveTracker, 101)
+local itemButton, click = native.ItemButton, native.scripts.OnClick
+assert(native.HeaderText.fullHeight and native.HeaderText.text:find("Journalière", 1, true) and native.HeaderText.text:find("70%", 1, true))
+assert(native.funelBorder and native.funelBorder.shown and native.funelBorder.borderColor[3] == 1)
+local title = native.HeaderText.text
+assert(Build(QuestObjectiveTracker, 101).HeaderText.text == title, "Native header details duplicated on refresh")
+assert(native.ItemButton == itemButton and native.scripts.OnClick == click, "Native controls replaced")
+assert(Build(CampaignQuestObjectiveTracker, 105).HeaderText.text:find("Campagne", 1, true))
+assert(Build(WorldQuestObjectiveTracker, 103).HeaderText.text:find("Expédition", 1, true))
+SetSetting(first, "enabled", true)
+SetSetting(first, "content", "quests")
+assert(not first.shown, "Native mode leaves duplicate custom quest panel visible")
+LEM.callbacks.enter(); assert(first.shown)
+LEM.callbacks.exit(); assert(not first.shown)
+SlashCmdList.FUNELQOL("tracker")
+local nativeOptions
+for _, frame in ipairs(frames) do if frame.width == 360 and frame.height == 270 then nativeOptions = frame end end
+assert(nativeOptions and nativeOptions.shown)
+local trackerSettings = FunelQOLCharDB.tracker
+local enabledCheck = nativeOptions.checks.enabled
+enabledCheck:SetChecked(false); enabledCheck.scripts.OnClick(enabledCheck)
+assert(not persistedAddon.IsNativeTrackerEnabled() and first.shown and not native.funelBorder.shown)
+assert(Build(QuestObjectiveTracker, 101).HeaderText.text == "Quest 101", "Disabling native customization did not restore Blizzard title")
+enabledCheck:SetChecked(true); enabledCheck.scripts.OnClick(enabledCheck)
+trackerSettings.style = "pixels"
+persistedAddon.RefreshNativeTracker(); native = Build(QuestObjectiveTracker, 101)
+assert(native.funelBorder.backdrop.edgeFile == persistedAddon.media.borders.pixels.edgeFile and native.funelBorder.points[1][4] < 0)
+trackerSettings.style = "ayije"; persistedAddon.RefreshNativeTracker(); Build(QuestObjectiveTracker, 101)
+assert(native.funelBorder.backdrop.edgeFile == persistedAddon.media.ayije.borders.Ayije_Thin.edgeFile)
+trackerSettings.details, trackerSettings.progress, trackerSettings.colors = false, false, false
+Build(QuestObjectiveTracker, 101)
+assert(native.HeaderText.text == "Quest 101" and native.funelBorder.borderColor[1] == 0.38)
+trackerSettings.details, trackerSettings.progress, trackerSettings.colors = true, true, true
+combat = true
+local beforeCombat = #frames
+native = Build(QuestObjectiveTracker, 101)
+assert(native.HeaderText.text == "Quest 101" and #frames == beforeCombat, "Native UI modified during combat")
+local combatBlock = Build(QuestObjectiveTracker, 109)
+assert(not combatBlock.funelHooked and not combatBlock.funelBorder)
+combat = false
+local nativeEvents
+for _, frame in ipairs(frames) do if frame.events.PLAYER_REGEN_ENABLED then nativeEvents = frame end end
+assert(nativeEvents)
+nativeEvents.scripts.OnEvent(nativeEvents, "PLAYER_REGEN_ENABLED")
+combatBlock = Build(QuestObjectiveTracker, 109)
+assert(combatBlock.funelHooked and combatBlock.funelBorder)
+QuestObjectiveTracker:FreeBlock(native)
+assert(not native.funelBorder.shown)
+native.parentModule = {} -- pooled blocks can later be used by other tracker modules
+native:SetHeader("Scenario")
+assert(native.HeaderText.text == "Scenario", "Quest header hook decorated a recycled non-quest block")
+print("PASS: native quest/campaign/world tracker hooks, measured headers, colors/styles, control preservation, duplicate suppression, options/disable restoration, combat deferral and pooled block reuse.")
