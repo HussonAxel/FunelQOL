@@ -359,8 +359,6 @@ local function Render(panel)
     panel.arrow:SetText(compactSurface and ("|TInterface\\Buttons\\UI-ScrollBar-Scroll" .. (settings.collapsed and "Up" or "Down") .. "Button-Up:16:16:0:0|t") or settings.collapsed and "+" or "-")
     local data = delves and addon.GetDelveRows(settings) or tracker and addon.GetTrackerRows(settings) or addon.GetPanelRows(settings)
     local renderedHeight = 0
-    local vaultGroup, vaultTop, vaultLabelCount = nil, 0, 0
-    panel.vaultLabels = panel.vaultLabels or {}
     local readable = tracker or settings.content == "quests" and settings.questReadable
     local groupIndex, currentGroup, groupStart = 0, nil, 0
     local function FinishGroup()
@@ -373,7 +371,6 @@ local function Render(panel)
         local row = panel.rows[index]
         if not row then row = CreateRow(panel); panel.rows[index] = row end
         row.data = entry
-        row.label:Show()
         row.meta:Hide()
         if row.trackerLine then row.trackerLine:Hide() end
         if row.trackerAccent then row.trackerAccent:Hide() end
@@ -519,59 +516,10 @@ local function Render(panel)
             row.icon:ClearAllPoints()
             row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((actualHeight - Snap(16, pixel)) / 2, pixel))
         end
-        if entry.vaultActivityID then
-            if vaultGroup ~= entry.vaultCategoryID then
-                vaultGroup = entry.vaultCategoryID
-                vaultLabelCount = vaultLabelCount + 1
-                local label = panel.vaultLabels[vaultLabelCount]
-                if not label then
-                    label = panel.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                    panel.vaultLabels[vaultLabelCount] = label
-                end
-                label:ClearAllPoints()
-                label:SetPoint("TOPLEFT", clipPadding + rowInset + Snap(2, pixel), -clipPadding - renderedHeight - Snap(4, pixel))
-                label:SetWidth(rowWidth - Snap(4, pixel))
-                label:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
-                label:SetJustifyH("LEFT")
-                label:SetWordWrap(false)
-                label:SetText(string.upper(entry.vaultCategoryName))
-                label:SetTextColor(0.8, 0.8, 0.8)
-                label:Show()
-                renderedHeight = renderedHeight + Snap(settings.fontSize + 14, pixel)
-                vaultTop = renderedHeight
-            end
-            local cellWidth = math.floor((rowWidth - gap * 2) / (3 * pixel)) * pixel
-            local cellHeight = Snap(math.max(36, settings.fontSize + 20), pixel)
-            local slot = entry.vaultSlot - 1
-            local top = vaultTop + math.floor(slot / 3) * (cellHeight + gap)
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", clipPadding + rowInset + (slot % 3) * (cellWidth + gap), -clipPadding - top)
-            row:SetSize(cellWidth, cellHeight)
-            SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel(), entry.vaultUnlocked and { 0.3, 0.75, 0.3, 1 } or compactBorderColor)
-            row.background:Show()
-            row.border:Show()
-            row.label:Hide()
-            row.icon:Hide()
-            row.separator:Hide()
-            row.value:ClearAllPoints()
-            row.value:SetPoint("CENTER", 0, 0)
-            row.value:SetJustifyH("CENTER")
-            row.value:SetWidth(cellWidth - Snap(8, pixel))
-            local fontSize = settings.fontSize + 3
-            row.value:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
-            while row.value:GetUnboundedStringWidth() > cellWidth - Snap(8, pixel) and fontSize > 8 do
-                fontSize = fontSize - 1
-                row.value:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
-            end
-            renderedHeight = math.max(renderedHeight, top + cellHeight + gap)
-        else
-            row.value:SetJustifyH("RIGHT")
-            renderedHeight = renderedHeight + actualHeight + (compactSurface and 0 or readable and Snap(2, pixel) or gap)
-        end
+        renderedHeight = renderedHeight + actualHeight + (compactSurface and 0 or readable and Snap(2, pixel) or gap)
         row:Show()
     end
     FinishGroup()
-    for index = vaultLabelCount + 1, #panel.vaultLabels do panel.vaultLabels[index]:Hide() end
     for index = groupIndex + 1, #(panel.questGroups or {}) do panel.questGroups[index]:Hide() end
     for index = #data + 1, #panel.rows do panel.rows[index]:Hide() end
     local maximumHeight = delves and settings.delvesHeight or settings.questHeight

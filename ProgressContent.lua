@@ -64,6 +64,7 @@ function addon.GetVaultRows(settings)
                     link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(activity.id)
                     if link and C_Item and C_Item.GetDetailedItemLevelInfo then level = C_Item.GetDetailedItemLevelInfo(link) end
                 end
+                local count = math.min(progress, activity.threshold) .. " / " .. activity.threshold
                 local lines = { category.name .. " · " .. (fr and "Emplacement " or "Slot ") .. activity.index,
                     (fr and "Progression : " or "Progress: ") .. progress .. " / " .. activity.threshold,
                     unlocked and (fr and "Emplacement débloqué" or "Slot unlocked") or (fr and "Emplacement verrouillé" or "Slot locked") }
@@ -71,10 +72,9 @@ function addon.GetVaultRows(settings)
                 if link then lines[#lines + 1] = link end
                 if claim and not currentPeriod then lines[#lines + 1] = fr and "Récompenses de la période précédente affichées par Blizzard." or "Blizzard is displaying rewards from the previous period." end
                 rows[#rows + 1] = { name = category.name .. " · " .. activity.index,
-                    valueText = unlocked and (level and tostring(level) or "?") or "—",
-                    labelColor = unlocked and green or gray, icon = "Interface\\Icons\\INV_Misc_TreasureChest01",
-                    vaultActivityID = activity.id, vaultCategoryID = category.id, vaultCategoryName = category.name,
-                    vaultSlot = activity.index, vaultUnlocked = unlocked, tooltipLines = lines, fitValue = true }
+                    valueText = unlocked and (level and tostring(level) or "OK") or count,
+                    labelColor = unlocked and green or cyan, icon = "Interface\\Icons\\INV_Misc_TreasureChest01",
+                    vaultActivityID = activity.id, tooltipLines = lines, fitValue = true }
             end
         end
     end
