@@ -11,8 +11,8 @@ local definitions = {
 
 local styles = {
     blizzard = { edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", fill = "Interface\\TargetingFrame\\UI-StatusBar", edgeSize = 8 },
-    ayije = { edgeFile = addon.media.ayije.borders.Ayije_Thin.edgeFile, fill = addon.media.ayije.statusbars.Ayije_light, edgeSize = 16 },
-    pixels = { edgeFile = addon.media.borders.pixels.edgeFile, fill = addon.media.textures.pixelsFill, edgeSize = 16, centered = true },
+    ayije = { edgeFile = addon.media.ayije.borders.Ayije_Thin.edgeFile, fill = addon.media.ayije.statusbars.Ayije_light, edgeSize = 16, centered = true, inkInset = 9 / 28 },
+    pixels = { edgeFile = addon.media.borders.pixels.edgeFile, fill = addon.media.textures.pixelsFill, edgeSize = 16, centered = true, inkInset = 10 / 28 },
 }
 local activeLayout = "Modern"
 local editing = false
@@ -139,9 +139,9 @@ local function Render(panel)
     local pixel = PixelUnit(panel)
     local width = Snap(settings.width, pixel)
     local headerHeight = Snap(26, pixel)
-    -- Pixels' visible ink starts 10/28 into each sampled edge cell. Leave
-    -- room for that exterior ink on both adjacent surfaces before adding the gap.
-    local outerInk = style.centered and math.max(0, Snap(style.edgeSize / 2, pixel) - style.edgeSize * (10 / 28)) or 0
+    -- Alpha >= 64 starts at texel 11 (Ayije) / 12 (Pixels), in the 2..29
+    -- sampled cell. Leave room for each texture's exterior ink on both surfaces.
+    local outerInk = style.centered and math.max(0, Snap(style.edgeSize / 2, pixel) - style.edgeSize * style.inkInset) or 0
     local gap = math.ceil((3 + outerInk * 2) / pixel - 0.001) * pixel
     local contentTop = headerHeight + gap
     local rowHeight = Snap(settings.rowHeight, pixel)

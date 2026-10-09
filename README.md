@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.2.1 provides two configurable preview panels inspired by the reference videos, establishing the visual structure before adding live game data. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.2.2 provides two configurable preview panels inspired by the reference videos, establishing the visual structure before adding live game data. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -65,7 +65,7 @@ npm exec --yes --package=fengari-node-cli -- fengari tests/smoke.lua
 
 It does not run Blizzard's UI or verify visual rendering, dragging, or taint; those require the in-game checks above.
 
-Pixels borders use a separate edge-only frame above the fill, centered around the host with mirrored offsets snapped to physical pixels. Panel dimensions, row spacing, and icon geometry are snapped at the panel's effective scale; spacing includes the Pixels artwork's visible exterior edge. Geometry is recalculated when the UI scale, panel scale, or resolution changes. The regression check exercises 36 combinations of screen resolution, UI scale, and panel scale; final texture rasterization still requires an in-game check.
+Pixels and Ayije borders use a separate edge-only frame above the fill, centered around the host with mirrored offsets snapped to physical pixels. The Ayije placement matches its native 16-unit edge with an 8-unit exterior offset; this also keeps corners from overlapping on short headers. Panel dimensions, row spacing, and icon geometry are snapped at the panel's effective scale; spacing accounts for each artwork's visible exterior edge. Geometry is recalculated when the UI scale, panel scale, or resolution changes. The regression check exercises 72 combinations of border style, screen resolution, UI scale, and panel scale; final texture rasterization still requires an in-game check.
 
 ## Custom media
 

@@ -129,6 +129,7 @@ SetSetting(first, "showBars", false)
 assert(not first.rows[1].bar.shown)
 SetSetting(first, "style", "ayije")
 assert(first.header.border.backdrop.edgeFile == addon.media.ayije.borders.Ayije_Thin.edgeFile)
+assert(first.header.border.points[1][4] < 0, "Ayije border must be centered around the host, not inset into it")
 SetSetting(first, "style", "pixels")
 assert(first.header.border.backdrop.edgeFile == addon.media.borders.pixels.edgeFile)
 -- Pixel artwork must surround the content on a separate, higher frame.
@@ -168,6 +169,8 @@ local function OnGrid(value, pixel)
     assert(math.abs(value / pixel - math.floor(value / pixel + 0.5)) < 0.00001, "Geometry misses the physical pixel grid")
 end
 first = newAddon.panels[1]
+for _, style in ipairs({ "pixels", "ayije" }) do
+    SetSetting(first, "style", style)
 for _, height in ipairs({ 1080, 1440, 2160 }) do
     physicalHeight = height
     for _, uiScale in ipairs({ 0.64, 0.8, 1 }) do
@@ -189,13 +192,17 @@ for _, height in ipairs({ 1080, 1440, 2160 }) do
             OnGrid(first.header.height, pixel)
             local contentTop = -first.content.points[1][3]
             -- The two-argument offset SetPoint call stores x/y at indices 2/3.
-            local outside = -tl[4] - row.border.backdrop.edgeSize * (10 / 28)
+            local outside = -tl[4] - row.border.backdrop.edgeSize * ((style == "ayije" and 9 or 10) / 28)
             assert(contentTop - first.header.height >= 2 * outside, "Header and row borders overlap")
+            local headerBorder = first.header.border
+            local heightWithOutset = first.header.height + headerBorder.points[1][5] - headerBorder.points[2][5]
+            assert(heightWithOutset >= 2 * headerBorder.backdrop.edgeSize, "Border corners are squeezed by a short header")
         end
     end
+end
 end
 UIParent:SetScale(0.73)
 OnGrid(first.width, (768 / physicalHeight) / first:GetEffectiveScale())
 assert(UIParent.scaleHook, "Direct UI scale changes are not observed")
 print("PASS: initialization, preview controls, independent titles, collapse, visibility, layout switching/copy/rename/delete, and combat guard.")
-print("PASS: centered Pixels borders, fill tint, and physical pixel alignment at 36 resolution/UI/panel-scale combinations.")
+print("PASS: centered Pixels/Ayije borders, corner clearance, fill tint, and pixel alignment at 72 style/resolution/UI/panel-scale combinations.")
