@@ -12,7 +12,7 @@ local definitions = {
 local styles = {
     blizzard = { edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", fill = "Interface\\TargetingFrame\\UI-StatusBar", edgeSize = 8 },
     ayije = { edgeFile = addon.media.ayije.borders.Ayije_Thin.edgeFile, fill = addon.media.ayije.statusbars.Ayije_light, edgeSize = 16 },
-    pixels = { edgeFile = addon.media.borders.pixels.edgeFile, fill = addon.media.textures.pixelsFill, edgeSize = 16 },
+    pixels = { edgeFile = addon.media.borders.pixels.edgeFile, fill = addon.media.textures.pixelsFill, edgeSize = 16, centered = true },
 }
 local activeLayout = "Modern"
 local editing = false
@@ -53,10 +53,45 @@ local function Settings(id, layoutName)
     return settings
 end
 
-local function SetBackdrop(frame, style, opacity)
-    frame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = style.edgeFile, tile = false, edgeSize = style.edgeSize, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-    frame:SetBackdropColor(0.035, 0.035, 0.035, opacity)
-    frame:SetBackdropBorderColor(0.38, 0.35, 0.29, 1)
+local function PixelUnit(frame)
+    local _, height = GetPhysicalScreenSize()
+    height = height and height > 0 and height or 1080
+    return (768 / height) / frame:GetEffectiveScale()
+end
+
+local function Snap(value, pixel)
+    return math.floor(value / pixel + 0.5 + 0.001) * pixel
+end
+
+local function DisableTextureSnapping(texture)
+    if texture and texture.SetSnapToPixelGrid then
+        texture:SetSnapToPixelGrid(false)
+        texture:SetTexelSnappingBias(0)
+    end
+end
+
+local function SetBackdrop(frame, style, opacity, pixel, contentLevel)
+    if not frame.background then
+        frame.background = frame:CreateTexture(nil, "BACKGROUND")
+        frame.border = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+        frame.border:EnableMouse(false)
+    end
+    -- Content occupies the host rect. Only the edge art extends outside it.
+    local inset = style.centered and 0 or Snap(3, pixel)
+    frame.background:ClearAllPoints()
+    frame.background:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
+    frame.background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+    frame.background:SetColorTexture(0.035, 0.035, 0.035, opacity)
+    DisableTextureSnapping(frame.background)
+    local reach = style.centered and Snap(style.edgeSize / 2, pixel) or 0
+    frame.border:ClearAllPoints()
+    -- Snap one positive reach and mirror it: rounding +/- half pixels separately is asymmetric.
+    frame.border:SetPoint("TOPLEFT", frame, "TOPLEFT", -reach, reach)
+    frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", reach, -reach)
+    frame.border:SetFrameLevel((contentLevel or frame:GetFrameLevel()) + 2)
+    frame.border:SetBackdrop({ edgeFile = style.edgeFile, edgeSize = style.edgeSize, insets = { left = 0, right = 0, top = 0, bottom = 0 } })
+    frame.border:SetBackdropBorderColor(0.38, 0.35, 0.29, 1)
+    for _, region in ipairs({ frame.border:GetRegions() }) do DisableTextureSnapping(region) end
 end
 
 local function CreateRow(panel)
@@ -88,11 +123,11 @@ local function CreateRow(panel)
         GameTooltip:SetText(data.name, 1, 0.82, 0)
         GameTooltip:AddLine(text.preview, 1, 1, 1)
         GameTooltip:Show()
-        self:SetBackdropBorderColor(0.85, 0.72, 0.38, 1)
+        self.border:SetBackdropBorderColor(0.85, 0.72, 0.38, 1)
     end)
     row:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
-        self:SetBackdropBorderColor(0.38, 0.35, 0.29, 1)
+        self.border:SetBackdropBorderColor(0.38, 0.35, 0.29, 1)
     end)
     return row
 end
@@ -101,10 +136,24 @@ local function Render(panel)
     local settings = Settings(panel.definition.id)
     local style = styles[settings.style]
     panel:SetScale(settings.scale)
-    panel:SetWidth(settings.width)
-    SetBackdrop(panel.header, style, settings.opacity)
+    local pixel = PixelUnit(panel)
+    local width = Snap(settings.width, pixel)
+    local headerHeight = Snap(26, pixel)
+    -- Pixels' visible ink starts 10/28 into each sampled edge cell. Leave
+    -- room for that exterior ink on both adjacent surfaces before adding the gap.
+    local outerInk = style.centered and math.max(0, Snap(style.edgeSize / 2, pixel) - style.edgeSize * (10 / 28)) or 0
+    local gap = math.ceil((3 + outerInk * 2) / pixel - 0.001) * pixel
+    local contentTop = headerHeight + gap
+    local rowHeight = Snap(settings.rowHeight, pixel)
+    local rowStep = rowHeight + gap
+    panel:SetWidth(width)
+    panel.header:SetHeight(headerHeight)
+    panel.content:ClearAllPoints()
+    panel.content:SetPoint("TOPLEFT", 0, -contentTop)
+    panel.content:SetPoint("TOPRIGHT", 0, -contentTop)
+    SetBackdrop(panel.header, style, settings.opacity, pixel)
     panel.title:SetText(settings.title)
-    panel.title:SetWidth(settings.width - 40)
+    panel.title:SetWidth(width - Snap(40, pixel))
     panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
     panel.editModeName = "FunelQOL · " .. settings.title
     panel.arrow:SetText(settings.collapsed and "+" or "-")
@@ -114,20 +163,30 @@ local function Render(panel)
         if not row then row = CreateRow(panel); panel.rows[index] = row end
         row.data = entry
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, -(index - 1) * (settings.rowHeight + 3))
-        row:SetWidth(settings.width)
-        row:SetHeight(settings.rowHeight)
-        SetBackdrop(row, style, settings.opacity)
+        row:SetPoint("TOPLEFT", 0, -(index - 1) * rowStep)
+        row:SetWidth(width)
+        row:SetHeight(rowHeight)
+        SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel())
         row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.value:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.bar:SetStatusBarTexture(style.fill)
+        row.bar:SetStatusBarColor(0.12, 0.42, 0.62, 0.65)
+        DisableTextureSnapping(row.bar:GetStatusBarTexture())
+        local padding = Snap(3, pixel)
+        row.bar:ClearAllPoints()
+        row.bar:SetPoint("TOPLEFT", padding, -padding)
+        row.bar:SetPoint("BOTTOMRIGHT", -padding, padding)
         row.bar:SetMinMaxValues(0, math.max(1, entry.maximum or 0))
         row.bar:SetValue(math.min(entry.value or 0, math.max(1, entry.maximum or 0)))
         row.bar:SetShown(settings.showBars and (entry.maximum or 0) > 0)
         row.icon:SetTexture(entry.icon)
+        DisableTextureSnapping(row.icon)
+        row.icon:SetSize(Snap(16, pixel), Snap(16, pixel))
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((rowHeight - Snap(16, pixel)) / 2, pixel))
         row.icon:SetShown(entry.icon ~= nil)
         row.label:ClearAllPoints()
-        row.label:SetPoint("LEFT", entry.icon and 24 or 6, 0)
+        row.label:SetPoint("LEFT", Snap(entry.icon and 24 or 6, pixel), 0)
         row.value:SetText(entry.valueText or "")
         local valueWidth = math.min(settings.width * 0.48, row.value:GetStringWidth())
         row.value:SetWidth(valueWidth)
@@ -137,7 +196,17 @@ local function Render(panel)
     end
     for index = #data + 1, #panel.rows do panel.rows[index]:Hide() end
     panel.content:SetShown(not settings.collapsed)
-    panel:SetHeight(settings.collapsed and 26 or (29 + #data * (settings.rowHeight + 3)))
+    panel:SetHeight(settings.collapsed and headerHeight or (contentTop + #data * rowStep))
+    -- Rebuild from the saved anchor before snapping the visible top-left edge.
+    -- GetLeft/GetTop are expressed in the frame's own scaled coordinates.
+    panel:ClearAllPoints()
+    panel:SetPoint(settings.point, UIParent, settings.point, settings.x, settings.y)
+    local left, top = panel:GetLeft(), panel:GetTop()
+    if left and top then
+        panel:ClearAllPoints()
+        panel:SetPoint(settings.point, UIParent, settings.point,
+            settings.x + Snap(left, pixel) - left, settings.y + Snap(top, pixel) - top)
+    end
     panel:SetShown(editing or settings.enabled)
 end
 
@@ -246,8 +315,16 @@ function addon.InitializePanels()
         LEM:AddFrame(panel, function(_, layoutName, point, x, y)
             local settings = Settings(definition.id, layoutName)
             settings.point, settings.x, settings.y = point, x, y
+            Render(panel)
         end, default)
         AddSettings(panel)
     end
     ApplyLayout(LEM:GetActiveLayoutName())
+
+    local events = CreateFrame("Frame")
+    events:RegisterEvent("UI_SCALE_CHANGED")
+    events:RegisterEvent("DISPLAY_SIZE_CHANGED")
+    events:SetScript("OnEvent", addon.RefreshPanels)
+    -- UIParent:SetScale can be called directly by UI addons without a CVar event.
+    hooksecurefunc(UIParent, "SetScale", addon.RefreshPanels)
 end
