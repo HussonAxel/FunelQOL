@@ -790,18 +790,27 @@ function GetAchievementCriteriaInfoByID(_, id)
     if id == 220587 then return "Spécial sporasaure" end
 end
 local references = 0
+local grades = {}
 for _, definition in ipairs(persistedAddon.delveRatings) do
     for _, reference in ipairs(definition.stories) do
         references = references + 1
+        grades[reference[3]] = (grades[reference[3]] or 0) + 1
         delvePOIs = { [1] = { name = definition.name, atlasName = "delves-bountiful", mapID = 2537, tooltipWidgetSet = 301 } }
         delveWidgets = { [301] = { shownState = 1, text = "Story Variant: |cnNORMAL_FONT_COLOR:" .. reference[1] .. "|r" } }
         persistedAddon.InvalidateDelves()
         local active = persistedAddon.GetActiveDelves({ delvesSort = "grade" })
         assert(#active == 1 and active[1].reference == reference and active[1].bountiful == true)
         assert(reference[2]:match("^%d+:%d%d%.%d%d$"), "Invalid reference time")
+        for _, alias in ipairs(reference.aliases or {}) do
+            delveWidgets[301].text = "Story Variant: " .. alias
+            persistedAddon.InvalidateDelves()
+            local aliased = persistedAddon.GetActiveDelves({})
+            assert(aliased[1].reference == reference, "Story alias matched the wrong delve variant")
+        end
     end
 end
 assert(references == 44 and #persistedAddon.delveRatings == 12)
+assert(grades.S == 3 and grades.A == 13 and grades.B == 8 and grades.C == 13 and grades.D == 7 and not grades.F, "Grades differ from supplied tier table")
 delvePOIs = {
     [1] = { name = "Le golfe des souvenirs", atlasName = "delves-bountiful", mapID = 2537, tooltipWidgetSet = 301 },
     [2] = { name = "The Darkway", atlasName = "delves-regular", mapID = 2537, tooltipWidgetSet = 302 },
@@ -817,9 +826,9 @@ delveWidgets = {
 }
 persistedAddon.InvalidateDelves()
 local active = persistedAddon.GetActiveDelves({ delvesSort = "grade" })
-assert(#active == 4 and active[1].name == "Le golfe des souvenirs" and active[1].reference[3] == "S")
+assert(#active == 4 and active[1].name == "Le golfe des souvenirs" and active[1].reference[3] == "A")
 assert(active[1].delveID == 11 and active[1].mapID == 160, "Primary map pin not used for map clicks")
-assert(active[2].name == "Collegiate Calamity" and not active[2].reference, "Renamed story received an assumed grade")
+assert(active[2].name == "Collegiate Calamity" and active[2].reference[3] == "C", "Achievement story alias lost its grade")
 assert(active[3].bountiful == false and active[3].reference[3] == "A")
 assert(active[4].bountiful == nil, "Unknown atlas falsely classified as a standard delve")
 assert(#persistedAddon.GetActiveDelves({ delvesBountifulOnly = true }) == 2)
@@ -838,17 +847,23 @@ SetSetting(second, "content", "quests")
 SetSetting(first, "content", "delves")
 assert(first.title.text == "Delves" and second.rows[1].data.trackerSection == "campaign")
 local delve = FindTrackerRow(function(data) return data.delveID == 11 end)
-assert(delve and delve.value.shown and delve.value.text == "S" and delve.value.fontSize > delve.label.fontSize)
+assert(delve and delve.value.shown and delve.value.text == "A" and delve.value.fontSize > delve.label.fontSize)
 assert(delve.label.width < first.width - 65 and delve.meta.text:find("0:44.01", 1, true))
 delve.scripts.OnEnter(delve)
 delve.scripts.OnClick(delve); assert(openedMap == 160)
 combat = true; openedMap = nil; delve.scripts.OnClick(delve); assert(not openedMap); combat = false
+local collegiate = FindTrackerRow(function(data) return data.delveID == 3 end)
+assert(collegiate.value.text == "C" and collegiate.meta.text:find("Academic Antitoxin", 1, true))
+delveWidgets[303].text = "Story Variant: Unlisted story"
+delveEvents.scripts.OnEvent(delveEvents, "UPDATE_UI_WIDGET", { widgetID = 303 })
 local unrated = FindTrackerRow(function(data) return data.delveID == 3 end)
-assert(unrated.value.text == "?" and unrated.meta.text:find("Academic Antitoxin", 1, true))
+assert(unrated.value.text == "?", "Unknown story received a grade")
+delveWidgets[303].text = "Story Variant: Academic Antitoxin"
+delveEvents.scripts.OnEvent(delveEvents, "UPDATE_UI_WIDGET", { widgetID = 303 })
 delveWidgets[301].text = "Story Variant: Descent of the Haranir"
 delveEvents.scripts.OnEvent(delveEvents, "UPDATE_UI_WIDGET", { widgetID = 301 })
 delve = FindTrackerRow(function(data) return data.delveID == 11 end)
-assert(delve.value.text == "F" and delve.meta.text:find("2:14.10", 1, true), "Active story change keeps stale grade")
+assert(delve.value.text == "C" and delve.meta.text:find("2:14.10", 1, true), "Active story change keeps stale grade")
 delvePOIs[1].atlasName, delvePOIs[11].atlasName = "delves-regular", "delves-regular"
 delveEvents.scripts.OnEvent(delveEvents, "AREA_POIS_UPDATED")
 assert(FindTrackerRow(function(data) return data.delveID == 11 end).data.bountiful == false)

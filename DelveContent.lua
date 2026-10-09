@@ -11,8 +11,8 @@ text.delvesUnrated = fr and "Variante absente du classement" or "Story not in th
 text.delvesHint = fr and "Les gouffres et leur variante sont récupérés automatiquement. Les notes et temps viennent de ta liste. Filtre et tri : mode édition." or "Delves and their stories are discovered automatically. Grades and times come from your list. Filter and sort in Edit Mode."
 text.delvesBountiful = fr and "Abondants" or "Bountiful"
 text.delvesNormal = fr and "Standards" or "Normal"
-addon.delveGradeColors = { S = { 0.8, 0.5, 1 }, A = { 0.3, 1, 0.5 }, B = { 0.4, 0.75, 1 },
-    C = { 1, 0.85, 0.3 }, D = { 1, 0.55, 0.2 }, F = { 1, 0.35, 0.35 } }
+addon.delveGradeColors = { S = { 0.8, 0.5, 1 }, A = { 0.3, 1, 0.5 }, B = { 1, 0.85, 0.3 },
+    C = { 1, 0.55, 0.2 }, D = { 1, 0.35, 0.35 }, F = { 1, 0.35, 0.35 } }
 local gradeOrder = { S = 1, A = 2, B = 3, C = 4, D = 5, F = 6 }
 local snapshot, watchedWidgets
 watchedWidgets = {}
@@ -47,7 +47,9 @@ local function Rating(delve, story)
     local result
     for _, reference in ipairs(delve.stories) do
         local localized = reference[4] and GetAchievementCriteriaInfoByID and GetAchievementCriteriaInfoByID(delve.achievementID, reference[4])
-        if key == Normalize(reference[1]) or localized and key == Normalize(localized) then
+        local matches = key == Normalize(reference[1]) or localized and key == Normalize(localized)
+        for _, alias in ipairs(reference.aliases or {}) do if key == Normalize(alias) then matches = true end end
+        if matches then
             if result then return nil end -- Never guess between ambiguous matches.
             result = reference
         end
