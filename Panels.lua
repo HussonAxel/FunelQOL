@@ -1,6 +1,7 @@
 local addonName, addon = ...
 local LEM = addon.LibEditMode
 local text = addon.panelText
+local fr = GetLocale() == "frFR"
 local panels = {}
 addon.panels = panels
 
@@ -38,6 +39,7 @@ local function Settings(id, layoutName)
         collapsed = false, style = "blizzard", opacity = 0.94,
         fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
         questTracker = true, questEvents = true, questReadable = true, questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
+        delvesBountifulOnly = false, delvesSort = "grade", delvesHeight = 400,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -45,6 +47,9 @@ local function Settings(id, layoutName)
     local validContent = false
     for _, kind in ipairs(addon.contentTypes) do if settings.content == kind.value then validContent = true end end
     if not validContent then settings.content = "preview" end
+    if settings.delvesSort ~= "grade" and settings.delvesSort ~= "name" then settings.delvesSort = "grade" end
+    if type(settings.questSections) ~= "table" then settings.questSections = {} end
+    if type(settings.delvesSections) ~= "table" then settings.delvesSections = {} end
     if not styles[settings.style] then settings.style = "blizzard" end
     local anchors = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true, RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
     if not anchors[settings.point] then settings.point = "TOPRIGHT" end
@@ -55,6 +60,7 @@ local function Settings(id, layoutName)
     settings.rowHeight = math.floor(math.max(22, math.min(34, settings.rowHeight)))
     settings.rowCount = math.floor(math.max(1, math.min(8, settings.rowCount)))
     settings.questHeight = math.floor(math.max(150, math.min(800, settings.questHeight)))
+    settings.delvesHeight = math.floor(math.max(150, math.min(800, settings.delvesHeight)))
     settings.questLimit = math.floor(math.max(1, math.min(8, settings.questLimit)))
     return settings
 end
@@ -143,6 +149,8 @@ local function CreateRow(panel)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         if data.trackerSection then
             GameTooltip:SetText(data.name, 1, 1, 1)
+        elseif data.delveID then
+            addon.ShowDelveTooltip(data)
         elseif data.eventID then
             GameTooltip:SetText(data.questTitle, 1, 0.55, 0.12)
             if data.questZone then GameTooltip:AddLine(data.questZone, 0.3, 0.7, 1, true) end
@@ -171,9 +179,10 @@ local function CreateRow(panel)
         if self.data.trackerSection then
             local settings = Settings(panel.definition.id)
             local key = self.data.trackerSection
-            settings.questSections[key] = not settings.questSections[key]
+            local sections = self.data.delveSection and settings.delvesSections or settings.questSections
+            sections[key] = not sections[key]
             addon.RefreshPanels()
-        elseif self.data.eventID and not InCombatLockdown() and OpenWorldMap then
+        elseif (self.data.eventID or self.data.delveID) and not InCombatLockdown() and OpenWorldMap then
             OpenWorldMap(self.data.mapID)
         elseif self.data.questID and not InCombatLockdown() then
             if self.data.autoComplete and ShowQuestComplete then ShowQuestComplete(self.data.questID) else QuestMapFrame_OpenToQuestDetails(self.data.questID) end
@@ -201,6 +210,17 @@ local function LayoutTrackerRow(row, entry, settings, width, pixel)
     row.label:ClearAllPoints()
     row.label:SetPoint("TOPLEFT", left, -P(section and 6 or 2))
     row.label:SetWidth(width - left - P(12))
+    if entry.delveID then
+        row.label:SetWidth(width - left - P(42))
+        row.value:ClearAllPoints()
+        row.value:SetPoint("TOPRIGHT", -P(12), -P(2))
+        row.value:SetFont(STANDARD_TEXT_FONT, settings.fontSize + 3, "")
+        row.value:SetWidth(P(24))
+        row.value:SetText(entry.delveGrade)
+        local color = addon.delveGradeColors[entry.delveGrade] or { 0.65, 0.7, 0.75 }
+        row.value:SetTextColor(color[1], color[2], color[3])
+        row.value:Show()
+    end
     if section then
         row.label:SetText((entry.sectionCollapsed and "+ " or "− ") .. entry.name)
         row.label:SetTextColor(1, 1, 1)
@@ -226,7 +246,11 @@ local function LayoutTrackerRow(row, entry, settings, width, pixel)
     local height = row.label:GetStringHeight() + 5
     if header then
         local metadata = entry.questZone and "|cff4da6e6" .. entry.questZone .. "|r" or ""
-        if settings.questDetails then
+        if entry.delveID then
+            local story = entry.delveStory or text.delvesUnknown
+            if entry.delveTime then story = story .. " · " .. entry.delveTime end
+            metadata = metadata .. (metadata ~= "" and "\n" or "") .. story
+        elseif settings.questDetails then
             local badge = entry.questBadge or ""
             local status = entry.questFailed and text.questFailed or entry.valueText == text.questLoading and text.questLoading
                 or not entry.questComplete and entry.value and entry.value > 0 and entry.questProgressText or ""
@@ -278,7 +302,9 @@ local function Render(panel)
     panel:SetScale(settings.scale)
     local pixel = PixelUnit(panel)
     local width = Snap(settings.width, pixel)
-    local tracker = settings.content == "quests" and settings.questReadable and settings.questTracker
+    local questTracker = settings.content == "quests" and settings.questReadable and settings.questTracker
+    local delves = settings.content == "delves"
+    local tracker = questTracker or delves
     local headerHeight = Snap(tracker and 34 or 26, pixel)
     -- Alpha >= 64 starts at texel 11 (Ayije) / 12 (Pixels), in the 2..29
     -- sampled cell. Leave room for each texture's exterior ink on both surfaces.
@@ -289,7 +315,7 @@ local function Render(panel)
     panel:SetWidth(width)
     panel.header:SetHeight(headerHeight)
     local clipPadding = Snap(8, pixel)
-    local questInset = settings.content == "quests" and clipPadding or 0
+    local questInset = (settings.content == "quests" or delves) and clipPadding or 0
     panel.viewport:ClearAllPoints()
     panel.viewport:SetPoint("TOPLEFT", -clipPadding, -contentTop + clipPadding - questInset)
     panel.viewport:SetPoint("TOPRIGHT", clipPadding, -contentTop + clipPadding - questInset)
@@ -300,15 +326,15 @@ local function Render(panel)
     panel.header.border:SetShown(not tracker)
     panel.title:ClearAllPoints()
     panel.title:SetPoint(tracker and "LEFT" or "CENTER", tracker and Snap(12, pixel) or -8, 0)
-    panel.title:SetText(tracker and settings.title == panel.definition.title and text.trackerTitle or settings.title)
+    panel.title:SetText(tracker and settings.title == panel.definition.title and (delves and text.delves or text.trackerTitle) or settings.title)
     panel.title:SetWidth(width - Snap(40, pixel))
     panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (tracker and 3 or 0), tracker and "" or "OUTLINE")
     panel.title:SetTextColor(1, tracker and 1 or 0.82, tracker and 1 or 0)
     panel.editModeName = "FunelQOL · " .. settings.title
     panel.arrow:SetText(settings.collapsed and "+" or "-")
-    local data = tracker and addon.GetTrackerRows(settings) or addon.GetPanelRows(settings)
+    local data = delves and addon.GetDelveRows(settings) or tracker and addon.GetTrackerRows(settings) or addon.GetPanelRows(settings)
     local renderedHeight = 0
-    local readable = settings.content == "quests" and settings.questReadable
+    local readable = tracker or settings.content == "quests" and settings.questReadable
     local groupIndex, currentGroup, groupStart = 0, nil, 0
     local function FinishGroup()
         if not currentGroup then return end
@@ -351,6 +377,7 @@ local function Render(panel)
         row.border:SetShown(not readable)
         row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.value:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
+        row.value:SetTextColor(1, 1, 1)
         row.bar:SetStatusBarTexture(style.fill)
         row.bar:SetStatusBarColor(0.12, 0.42, 0.62, 0.65)
         DisableTextureSnapping(row.bar:GetStatusBarTexture())
@@ -455,7 +482,8 @@ local function Render(panel)
     FinishGroup()
     for index = groupIndex + 1, #(panel.questGroups or {}) do panel.questGroups[index]:Hide() end
     for index = #data + 1, #panel.rows do panel.rows[index]:Hide() end
-    local visibleHeight = settings.content == "quests" and math.min(renderedHeight, Snap(settings.questHeight, pixel)) or renderedHeight
+    local maximumHeight = delves and settings.delvesHeight or settings.questHeight
+    local visibleHeight = (settings.content == "quests" or delves) and math.min(renderedHeight, Snap(maximumHeight, pixel)) or renderedHeight
     panel.content:SetSize(width + clipPadding * 2, renderedHeight + clipPadding * 2)
     panel.viewport:SetHeight(visibleHeight + clipPadding * 2)
     panel.scrollMaximum = math.max(0, renderedHeight - visibleHeight)
@@ -510,6 +538,9 @@ local function AddSettings(panel)
         { key = "content", label = text.content, kind = LEM.SettingType.Dropdown, default = "preview" },
         { key = "questTracker", label = text.questTracker, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questEvents", label = text.questEvents, kind = LEM.SettingType.Checkbox, default = true },
+        { key = "delvesBountifulOnly", label = text.delvesBountifulOnly, kind = LEM.SettingType.Checkbox, default = false },
+        { key = "delvesSort", label = text.delvesSort, kind = LEM.SettingType.Dropdown, default = "grade" },
+        { key = "delvesHeight", label = text.delvesHeight, kind = LEM.SettingType.Slider, default = 400, min = 150, max = 800, step = 25 },
         { key = "questReadable", label = text.questReadable, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAuto", label = text.questAuto, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAll", label = text.questAll, kind = LEM.SettingType.Checkbox, default = true },
@@ -536,6 +567,7 @@ local function AddSettings(panel)
             hidden = function(layoutName)
                 local settings = Settings(id, layoutName)
                 if key == "rowCount" then return settings.content ~= "preview" end
+                if key == "delvesBountifulOnly" or key == "delvesSort" or key == "delvesHeight" then return settings.content ~= "delves" end
                 if key == "questTracker" then return settings.content ~= "quests" or not settings.questReadable end
                 if key == "questEvents" then return settings.content ~= "quests" or not settings.questReadable or not settings.questTracker end
                 if key == "questReadable" or key == "questAuto" or key == "questObjectives" or key == "questDetails" or key == "questColors" or key == "questHeight" then return settings.content ~= "quests" end
@@ -543,7 +575,7 @@ local function AddSettings(panel)
                 if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto or settings.questAll end
                 return false
             end,
-            values = key == "content" and addon.contentTypes or key == "style" and { { text = "Blizzard", value = "blizzard" }, { text = "Ayije", value = "ayije" }, { text = "Pixels", value = "pixels" } } or nil,
+            values = key == "content" and addon.contentTypes or key == "delvesSort" and { { text = fr and "Note" or "Grade", value = "grade" }, { text = fr and "Nom" or "Name", value = "name" } } or key == "style" and { { text = "Blizzard", value = "blizzard" }, { text = "Ayije", value = "ayije" }, { text = "Pixels", value = "pixels" } } or nil,
             get = function(layoutName) return Settings(id, layoutName)[key] end,
             set = function(layoutName, value)
                 if key == "content" then addon.CloseContentEditor() end
@@ -618,7 +650,7 @@ function addon.InitializePanels()
         panel.header:SetScript("OnEnter", function() panel.title:SetTextColor(1, 1, 1) end)
         panel.header:SetScript("OnLeave", function()
             local settings = Settings(definition.id)
-            local tracker = settings.content == "quests" and settings.questReadable and settings.questTracker
+            local tracker = settings.content == "delves" or settings.content == "quests" and settings.questReadable and settings.questTracker
             panel.title:SetTextColor(1, tracker and 1 or 0.82, tracker and 1 or 0)
         end)
         panels[#panels + 1] = panel
@@ -638,10 +670,23 @@ function addon.InitializePanels()
     events:RegisterEvent("AREA_POIS_UPDATED")
     events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     events:RegisterEvent("PLAYER_ENTERING_WORLD")
+    events:RegisterEvent("UPDATE_UI_WIDGET")
+    events:RegisterEvent("UPDATE_ALL_UI_WIDGETS")
+    events:RegisterEvent("ACTIVE_DELVE_DATA_UPDATE")
     for _, event in ipairs({ "PLAYER_MONEY", "CURRENCY_DISPLAY_UPDATE", "SKILL_LINES_CHANGED", "TRADE_SKILL_LIST_UPDATE", "TRAIT_CONFIG_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "SPELLS_CHANGED", "QUEST_LOG_UPDATE", "QUEST_WATCH_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_DATA_LOAD_RESULT", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN", "SUPER_TRACKING_CHANGED", "SUPER_TRACKING_PATH_UPDATED", "QUEST_POI_UPDATE" }) do
         events:RegisterEvent(event)
     end
-    events:SetScript("OnEvent", addon.RefreshPanels)
+    events:RegisterEvent("ACHIEVEMENT_EARNED")
+    events:RegisterEvent("CRITERIA_UPDATE")
+    local delveEvents = { AREA_POIS_UPDATED = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true,
+        ACTIVE_DELVE_DATA_UPDATE = true, UPDATE_ALL_UI_WIDGETS = true, ACHIEVEMENT_EARNED = true, CRITERIA_UPDATE = true }
+    events:SetScript("OnEvent", function(_, event, info)
+        if event == "UPDATE_UI_WIDGET" then
+            if not addon.IsDelveWidget(info and info.widgetID) then return end
+            addon.InvalidateDelves()
+        elseif delveEvents[event] then addon.InvalidateDelves() end
+        addon.RefreshPanels()
+    end)
     local elapsed = 0
     events:SetScript("OnUpdate", function(_, delta)
         if not addon.questHasTimers then elapsed = 0; return end

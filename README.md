@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.5.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.6.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -65,6 +65,18 @@ Quest titles show an icon and use yellow for active quests or green for ready qu
 
 In `/funelqol edit`, select the quest panel to toggle **Sectioned tracker presentation** (French: **Présentation du suivi en sections**) or **Show map events**. Disable the sectioned presentation to recover framed quest groups; disable **Group quest presentation** to recover separate objective rows. Width, font size, opacity, maximum tracker height and Pixels/Ayije/Blizzard borders remain configurable.
 
+## Delves panel
+
+After `/reload`, open `/funelqol edit`, select either panel and choose **Content → Delves**, just as you would select Currencies or Professions. This is independent panel content; no tab is added to the quest tracker. You can display Delves on one panel and quests/currencies on the other. It discovers available entrances on the Midnight continent (map 2537) and its child maps, even when the player is elsewhere.
+
+The list separates **Bountiful**, **Normal**, and unknown-status delves using Blizzard's map atlas (`delves-bountiful` / `delves-regular`), excluding locked entrances. Repeated continent/zone pins are merged by identified delve, with the primary zone pin used for map clicks. This is the current character's visible map status, not an account-wide history of today's completed bountiful rewards.
+
+Each entry displays its zone, detected active story, user-supplied reference time and a colored **S/A/B/C/D/F** grade beside its title. The bundled table contains all **44 rows across 12 delves** supplied by the user. `4.09.11` is normalized to `4:09.11`; route/guide labels and trailing spaces are removed. Times are reference values, not timed runs or predictions for the player's gear/tier. Hover for the full reference list; click to open the map outside combat.
+
+Stories are read from visible text widgets in the map pin's tooltip/icon widget sets. Stable achievement criteria IDs match localized story names for verified entries. Unknown, hidden or conflicting stories display **?**; no grade is guessed from the delve's best variant. Three supplied stories lack a verified criterion mapping (**Eggsplosive Growth**, **An Elementary Anditode**, **Infiltrate and Ameliorate**); they match the supplied English spelling only. Blizzard currently names Collegiate Calamity's new achievement criterion **Academic Antitoxin**, which is deliberately not assumed equivalent to An Elementary Anditode. The supplied **Basalisk Blitz** spelling resolves through the verified **Basilisk Blitz** criterion ID.
+
+In Edit Mode, use **Bountiful delves only**, **Sort delves** (grade/time or name) and **Maximum delve tracker height**; abundant entries stay first. Delve groups fold independently, with state saved per panel/layout separately from quest sections. Width, text size, scrolling and theme controls apply. Map, relevant widget and achievement updates refresh the data; unrelated widgets do not rescan all maps. No manual row selection is required for Delves.
+
 ## Files and development
 
 - `FunelQOL.toc`: addon metadata, supported interface version, saved variable declaration, and Lua file load order.
@@ -73,6 +85,8 @@ In `/funelqol edit`, select the quest panel to toggle **Sectioned tracker presen
 - `Content.lua`: live data providers and ordered selections.
 - `QuestContent.lua`: tracked quest/world quest catalog and live objective rows.
 - `TrackerContent.lua`: quest display metadata, section grouping/folding and current map events.
+- `DelveRatings.lua`: user-supplied story grades/times and verified localization criteria IDs.
+- `DelveContent.lua`: available Midnight delve discovery, bountiful status, story matching, sorting and tooltips.
 - `ContentEditor.lua`: native row editor for selections, ordering, and custom text.
 - `Panels.lua`: shared panel rendering and per-layout Edit Mode integration.
 - `Media.lua`: local artwork catalog.
@@ -146,3 +160,5 @@ API implementation references: [Blizzard currency documentation](https://github.
 Quest references: [Blizzard quest API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLogDocumentation.lua) and [Blizzard quest objective tracker](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_ObjectiveTracker/Blizzard_QuestObjectiveTracker.lua).
 
 Map-event reference: [Blizzard area POI API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/AreaPoiInfoDocumentation.lua).
+
+Delve references: [Blizzard delve map provider](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_SharedMapDataProviders/DelveEntranceDataProvider.lua), [map legend atlas names](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/MapLegendFrame.lua), [UI widget API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/UIWidgetManagerDocumentation.lua), and the story-achievement game data on Wowhead ([61724](https://www.wowhead.com/achievement=61724), [61725](https://www.wowhead.com/achievement=61725), [61726](https://www.wowhead.com/achievement=61726), [61727](https://www.wowhead.com/achievement=61727), [61728](https://www.wowhead.com/achievement=61728), [61729](https://www.wowhead.com/achievement=61729), [61730](https://www.wowhead.com/achievement=61730), [61731](https://www.wowhead.com/achievement=61731), [61732](https://www.wowhead.com/achievement=61732), [61733](https://www.wowhead.com/achievement=61733), [63436](https://www.wowhead.com/achievement=63436), [63437](https://www.wowhead.com/achievement=63437)).

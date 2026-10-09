@@ -80,7 +80,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -161,7 +161,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -333,7 +333,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -758,3 +758,153 @@ for _, row in ipairs(first.rows) do
     end
 end
 print("PASS: continuous tracker surface, campaign/quest/world/event sections, blue zones, quest icons and completion hierarchy, live deduplicated map events, map click guards, folding/edit guards, saved layout isolation, all themes and renderer switching.")
+
+-- Delves: every supplied rating, localized criteria, authoritative map icons,
+-- duplicate map pins, uncertainty, live rotation and independent panel content.
+local delvePOIs, delveWidgets, delveQueries = {}, {}, 0
+maps[2537] = { name = "Midnight", mapType = 2 }
+maps[160] = { name = "Harandar", mapType = 3, parentMapID = 2537 }
+C_Map.GetMapChildrenInfo = function(id, _, recursive)
+    assert(id == 2537 and recursive)
+    return { { mapID = 160 }, { mapID = 160 } }
+end
+C_AreaPoiInfo = {
+    GetDelvesForMap = function(mapID)
+        delveQueries = delveQueries + 1
+        local ids = {}
+        for id, poi in pairs(delvePOIs) do if poi.mapID == mapID then ids[#ids + 1] = id end end
+        table.sort(ids)
+        return ids
+    end,
+    GetAreaPOIInfo = function(_, id) return delvePOIs[id] end,
+}
+C_UIWidgetManager = {
+    GetAllWidgetsBySetID = function(id) return { { widgetID = id, widgetType = 8 } } end,
+    GetTextWithStateWidgetVisualizationInfo = function(id) return delveWidgets[id] end,
+}
+function GetAchievementInfo(id)
+    if id == 61731 then return id, "Histoires du golfe des souvenirs" end
+    return id, ""
+end
+function GetAchievementCriteriaInfoByID(_, id)
+    if id == 220587 then return "Spécial sporasaure" end
+end
+local references = 0
+for _, definition in ipairs(persistedAddon.delveRatings) do
+    for _, reference in ipairs(definition.stories) do
+        references = references + 1
+        delvePOIs = { [1] = { name = definition.name, atlasName = "delves-bountiful", mapID = 2537, tooltipWidgetSet = 301 } }
+        delveWidgets = { [301] = { shownState = 1, text = "Story Variant: |cnNORMAL_FONT_COLOR:" .. reference[1] .. "|r" } }
+        persistedAddon.InvalidateDelves()
+        local active = persistedAddon.GetActiveDelves({ delvesSort = "grade" })
+        assert(#active == 1 and active[1].reference == reference and active[1].bountiful == true)
+        assert(reference[2]:match("^%d+:%d%d%.%d%d$"), "Invalid reference time")
+    end
+end
+assert(references == 44 and #persistedAddon.delveRatings == 12)
+delvePOIs = {
+    [1] = { name = "Le golfe des souvenirs", atlasName = "delves-bountiful", mapID = 2537, tooltipWidgetSet = 301 },
+    [2] = { name = "The Darkway", atlasName = "delves-regular", mapID = 2537, tooltipWidgetSet = 302 },
+    [3] = { name = "Collegiate Calamity", atlasName = "delves-bountiful", mapID = 2537, tooltipWidgetSet = 303 },
+    [4] = { name = "Unknown Delve", atlasName = "future-delve-icon", mapID = 2537 },
+    [5] = { name = "Locked Delve", atlasName = "delves-bountiful", mapID = 2537, isLocked = true },
+    [11] = { name = "Le golfe des souvenirs", atlasName = "delves-bountiful", mapID = 160, tooltipWidgetSet = 301, isPrimaryMapForPOI = true },
+}
+delveWidgets = {
+    [301] = { shownState = 1, text = "Variante de l’histoire : |cffaa00ffSpécial sporasaure|r" },
+    [302] = { shownState = 1, text = "Story Variant: Ogre Powered" },
+    [303] = { shownState = 1, text = "Story Variant: Academic Antitoxin" },
+}
+persistedAddon.InvalidateDelves()
+local active = persistedAddon.GetActiveDelves({ delvesSort = "grade" })
+assert(#active == 4 and active[1].name == "Le golfe des souvenirs" and active[1].reference[3] == "S")
+assert(active[1].delveID == 11 and active[1].mapID == 160, "Primary map pin not used for map clicks")
+assert(active[2].name == "Collegiate Calamity" and not active[2].reference, "Renamed story received an assumed grade")
+assert(active[3].bountiful == false and active[3].reference[3] == "A")
+assert(active[4].bountiful == nil, "Unknown atlas falsely classified as a standard delve")
+assert(#persistedAddon.GetActiveDelves({ delvesBountifulOnly = true }) == 2)
+local queries = delveQueries
+persistedAddon.GetActiveDelves({}); assert(delveQueries == queries, "Delves rescan on every render")
+local delveEvents
+for _, frame in ipairs(frames) do if frame.events.ACTIVE_DELVE_DATA_UPDATE then delveEvents = frame end end
+assert(delveEvents and delveEvents.events.UPDATE_UI_WIDGET)
+delveEvents.scripts.OnEvent(delveEvents, "UPDATE_UI_WIDGET", { widgetID = 99999 })
+assert(delveQueries == queries, "Unrelated widgets rescan all delve maps")
+SetSetting(first, "content", "quests")
+SetSetting(first, "questTracker", true)
+assert(not first.trackerTabs and FindTrackerRow(function(data) return data.questID == 201 end))
+local second = persistedAddon.panels[2]
+SetSetting(second, "content", "quests")
+SetSetting(first, "content", "delves")
+assert(first.title.text == "Delves" and second.rows[1].data.trackerSection == "campaign")
+local delve = FindTrackerRow(function(data) return data.delveID == 11 end)
+assert(delve and delve.value.shown and delve.value.text == "S" and delve.value.fontSize > delve.label.fontSize)
+assert(delve.label.width < first.width - 65 and delve.meta.text:find("0:44.01", 1, true))
+delve.scripts.OnEnter(delve)
+delve.scripts.OnClick(delve); assert(openedMap == 160)
+combat = true; openedMap = nil; delve.scripts.OnClick(delve); assert(not openedMap); combat = false
+local unrated = FindTrackerRow(function(data) return data.delveID == 3 end)
+assert(unrated.value.text == "?" and unrated.meta.text:find("Academic Antitoxin", 1, true))
+delveWidgets[301].text = "Story Variant: Descent of the Haranir"
+delveEvents.scripts.OnEvent(delveEvents, "UPDATE_UI_WIDGET", { widgetID = 301 })
+delve = FindTrackerRow(function(data) return data.delveID == 11 end)
+assert(delve.value.text == "F" and delve.meta.text:find("2:14.10", 1, true), "Active story change keeps stale grade")
+delvePOIs[1].atlasName, delvePOIs[11].atlasName = "delves-regular", "delves-regular"
+delveEvents.scripts.OnEvent(delveEvents, "AREA_POIS_UPDATED")
+assert(FindTrackerRow(function(data) return data.delveID == 11 end).data.bountiful == false)
+SetSetting(first, "delvesBountifulOnly", true)
+assert(not FindTrackerRow(function(data) return data.delveID == 11 end))
+SetSetting(first, "delvesBountifulOnly", false)
+settings.delvesSections.delves_normal = true
+persistedAddon.RefreshPanels()
+assert(not FindTrackerRow(function(data) return data.delveID == 11 end))
+assert(not settings.questSections.delves_normal, "Delve folding is stored in quest settings")
+settings.delvesSections.delves_normal = false
+SetSetting(first, "content", "quests")
+assert(FindTrackerRow(function(data) return data.questID == 201 end))
+SetSetting(first, "content", "delves")
+assert(not first.trackerTabs and first.background.shown)
+assert(FindTrackerRow(function(data) return data.delveID == 11 end))
+local questHeightBefore = settings.questHeight
+SetSetting(first, "delvesHeight", 150)
+assert(settings.questHeight == questHeightBefore)
+assert(first.scrollMaximum > 0)
+persistedAddon.ConfigurePanel(1)
+local automaticHint
+for _, frame in ipairs(frames) do if frame.text == persistedAddon.panelText.delvesHint then automaticHint = frame end end
+assert(automaticHint, "Delves editor incorrectly offers static row selection")
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, scale in ipairs({ 0.7, 1.5 }) do
+                SetSetting(first, "scale", scale)
+                local row = FindTrackerRow(function(data) return data.delveID == 11 end)
+                local gradeLeft = first.width + row.value.point[2] - row.value.width
+                assert(row.label.point[2] + row.label.width <= gradeLeft, "Delve grade overlaps its title")
+                assert(row.height >= row.value.fontSize and first.border.shown and not row.border.shown)
+            end
+        end
+    end
+end
+settings.delvesSections.delves_normal = true
+LEM.callbacks.create("DelveCopy", nil, LEM.active)
+settings.delvesSections.delves_normal = false
+assert(FunelQOLCharDB.layouts.DelveCopy.panel1.delvesSections.delves_normal, "Delve fold settings are not independently copied")
+persistedAddon.RefreshPanels()
+delveWidgets[301].shownState = 0
+persistedAddon.InvalidateDelves(); persistedAddon.RefreshPanels()
+assert(FindTrackerRow(function(data) return data.delveID == 11 end).value.text == "?", "Hidden story widget supplies a grade")
+delveWidgets[301].shownState = 1
+delvePOIs[11].tooltipWidgetSet = 304
+delveWidgets[304] = { shownState = 1, text = "Story Variant: Alnmoth Munchies" }
+persistedAddon.InvalidateDelves(); persistedAddon.RefreshPanels()
+assert(FindTrackerRow(function(data) return data.delveID == 11 end).value.text == "?", "Conflicting map stories supply a grade")
+delvePOIs = {}
+persistedAddon.InvalidateDelves(); persistedAddon.RefreshPanels()
+assert(first.rows[1].data.name == persistedAddon.panelText.delvesEmpty and not first.rows[2].shown)
+SetSetting(first, "content", "currencies")
+assert(not first.background.shown and not first.trackerTabs and first.rows[1].value.textColor[1] == 1)
+print("PASS: all 44 grades across 12 delves, localized names and criteria, standard/bountiful/unknown icons, primary-map deduplication, unknown/hidden/conflicting stories, widget and rotation refresh, cache isolation, independent delve/quest panels and settings, all themes/widths/fonts/scales, automatic editor, folding/layout copy, scrolling and combat guards.")

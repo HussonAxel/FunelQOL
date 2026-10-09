@@ -15,6 +15,7 @@ addon.contentTypes = {
     { text = fr and "Métiers" or "Professions", value = "professions" },
     { text = fr and "Talents sélectionnés" or "Selected talents", value = "talents" },
     { text = fr and "Quêtes suivies" or "Tracked quests", value = "quests" },
+    { text = "Delves", value = "delves" },
     { text = fr and "Menu personnalisé" or "Custom menu", value = "custom" },
 }
 
@@ -111,6 +112,7 @@ function addon.GetMoneyText(amount, fontSize)
 end
 
 function addon.GetPanelRows(settings)
+    if settings.content == "delves" then return addon.GetDelveRows(settings) end
     if settings.content == "preview" then return addon.GetPreviewRows(settings.rowCount) end
     if settings.content == "quests" then return addon.GetQuestRows(settings) end
     local rows = {}

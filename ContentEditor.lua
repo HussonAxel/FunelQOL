@@ -57,8 +57,8 @@ function addon.OpenContentEditor(settings, refresh)
     hint:SetJustifyH("LEFT")
     hint:SetText(text.hint)
     if settings.content == "quests" then hint:SetText(text.questHint) end
-    if settings.content == "preview" then
-        hint:SetText(text.content .. ": " .. text.preview)
+    if settings.content == "preview" or settings.content == "delves" then
+        hint:SetText(settings.content == "delves" and text.delvesHint or text.content .. ": " .. text.preview)
         window.update = function() title:SetText("FunelQOL · " .. settings.title) end
         editor:Show()
         return
