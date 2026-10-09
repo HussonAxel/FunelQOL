@@ -1,6 +1,6 @@
 local addonName, addon = ...
 
-addon.version = "0.1.0"
+addon.version = "0.2.0"
 
 local function Print(message)
     DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffFunelQOL|r: " .. message)
@@ -9,13 +9,30 @@ end
 local function ShowHelp()
     Print("/funelqol status - Show addon status.")
     Print("/funelqol greeting - Toggle the login greeting.")
+    Print("/funelqol edit - Open Blizzard Edit Mode for panel settings.")
+    Print("/funelqol title <1|2> <text> - Rename a preview panel in the current layout.")
     Print("/funelqol help - Show these commands.")
 end
 
 local function HandleCommand(message)
-    local command = string.lower(string.match(message or "", "^%s*(.-)%s*$"))
+    local input = string.match(message or "", "^%s*(.-)%s*$")
+    local command = string.lower(input)
+    local action, arguments = string.match(input, "^(%S+)%s*(.*)$")
 
-    if command == "status" then
+    if action and string.lower(action) == "title" then
+        local panelID, title = string.match(arguments, "^([12])%s+(.+)$")
+        if panelID and #title <= 80 then
+            addon.SetPanelTitle(tonumber(panelID), title)
+        else
+            Print("Usage: /funelqol title <1|2> <short title>")
+        end
+    elseif command == "edit" then
+        if InCombatLockdown() then
+            Print("Edit Mode is unavailable in combat.")
+        else
+            ShowUIPanel(EditModeManagerFrame)
+        end
+    elseif command == "status" then
         Print("Version " .. addon.version .. "; login greeting " .. (addon.db.showGreeting and "on" or "off") .. ".")
     elseif command == "greeting" then
         addon.db.showGreeting = not addon.db.showGreeting
@@ -49,6 +66,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddonName)
         SlashCmdList.FUNELQOL = HandleCommand
         self:UnregisterEvent("ADDON_LOADED")
     elseif event == "PLAYER_LOGIN" then
+        addon.InitializePanels()
         if addon.db and addon.db.showGreeting then
             Print("Loaded v" .. addon.version .. ". Type /funelqol for help.")
         end

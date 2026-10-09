@@ -1,6 +1,6 @@
 # FunelQOL
 
-A small personal quality-of-life addon for World of Warcraft Retail. Version 0.1.0 provides a foundation for future features, with no external libraries required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.2.0 provides two configurable preview panels inspired by the reference videos, establishing the visual structure before adding live game data. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -18,13 +18,28 @@ When editing existing Lua files, use `/reload` to load changes.
 | `/funelqol` or `/funelqol help` | Show available commands. |
 | `/funelqol status` | Show the version and login greeting setting. |
 | `/funelqol greeting` | Toggle the greeting shown on login and UI reload. |
+| `/funelqol edit` | Open Blizzard Edit Mode (outside combat). |
+| `/funelqol title <1|2> <text>` | Rename a panel in the current layout, e.g. `/funelqol title 1 Mon menu`. |
 
 The greeting setting is account-wide and stored by WoW in `FunelQOLDB`. WoW writes saved settings on logout or UI reload.
+
+## Panels and Blizzard Edit Mode
+
+After login, **Panel 1** and **Panel 2** appear near the upper right of the screen. French clients show French panel titles and setting labels. Click a panel's header to collapse or expand it. Rows are explicitly labeled **Preview**; their icons and values are static samples, not character data.
+
+Open **Game Menu → Edit Mode** or `/funelqol edit`, then drag a FunelQOL panel to move it. Select the panel to change its visibility, collapsed state, width (180–420), scale (70–150%), background opacity, text size (10–18), row height (22–34), preview row count (1–8), progress bar visibility, and appearance (**Blizzard**, **Ayije**, or **Pixels**). Hidden panels are shown while editing so they remain recoverable. The default Blizzard appearance uses built-in textures; import the local media before choosing Ayije or Pixels. Rename panel headers with `/funelqol title`.
+
+Positions and settings are stored per character and per Blizzard layout name in `FunelQOLCharDB`. Copying, renaming, and deleting layouts also updates the addon settings. Addon adjustments are saved immediately in its own saved-variable data; Blizzard's Cancel button does not roll back FunelQOL adjustments. Logout or `/reload` writes them to disk.
+
+This version focuses on visual configuration. Currencies, professions, talents, buffs, pet information, and objective tracking are not connected yet. It does not alter Blizzard's existing frames. No combat data or protected buttons are used.
 
 ## Files and development
 
 - `FunelQOL.toc`: addon metadata, supported interface version, saved variable declaration, and Lua file load order.
 - `Core.lua`: addon namespace, saved setting initialization, login event handling, and slash commands.
+- `PanelPreview.lua`: localized labels and static preview rows.
+- `Panels.lua`: shared panel rendering and per-layout Edit Mode integration.
+- `Media.lua`: local artwork catalog.
 
 The addon targets retail interface `120100`, matching the installed 12.1.0 client at creation. After a game update, check `/dump select(4, GetBuildInfo())` in WoW and review API compatibility before updating the TOC's interface number.
 
@@ -37,6 +52,18 @@ New Lua files must be listed in `FunelQOL.toc` in their required load order. Eac
 3. Run `/funelqol greeting`, then `/reload`: the greeting should stay disabled and status should report it as off.
 4. Toggle the greeting again and reload: the greeting should return.
 5. Check BugSack or enable Lua errors with `/console scriptErrors 1` to catch runtime errors.
+6. Open `/funelqol edit`, move both panels, change their width/scale, hide one, then exit Edit Mode. Re-enter: the hidden panel must be selectable again.
+7. Switch to another Blizzard layout, then return: the original positions and settings must return. Copy and rename a custom layout, then reload and verify the panels.
+8. Toggle a header, rename it with `/funelqol title 1 Mon menu`, then reload: both the title and collapsed state must persist. Adjust text size, row height/count, opacity, and bar visibility.
+9. Select Ayije and Pixels appearances after importing media, and verify borders, bar fills, text alignment, and tooltips in-game.
+
+The mocked Lua smoke check covers preview settings, independent titles, layout persistence, hidden-frame recovery, and the slash commands:
+
+```powershell
+npm exec --yes --package=fengari-node-cli -- fengari tests/smoke.lua
+```
+
+It does not run Blizzard's UI or verify visual rendering, dragging, or taint; those require the in-game checks above.
 
 ## Custom media
 
@@ -64,7 +91,7 @@ AyijeUI 1.04 artwork is available locally through `addon.media.ayije`: 8 statusb
 
 For example, use `bar:SetStatusBarTexture(addon.media.ayije.statusbars.Ayije_light)` or `frame:SetBackdrop(addon.media.ayije.borders.Ayije_Thin)` on a frame created with `BackdropTemplate`. General textures and glyphs can be assigned with `texture:SetTexture(addon.media.ayije.textures.portraitBorder)` or `texture:SetTexture(addon.media.ayije.glyphs.pixelClose)`.
 
-To import AyijeUI alone, run `.\tools\Import-AyijeMedia.ps1`. The catalog lists the assets from the versions above; review it when updating the source addons. Importing media does not enable any UI skin automatically.
+To import AyijeUI alone, run `.\tools\Import-AyijeMedia.ps1`. The catalog lists the assets from the versions above; review it when updating the source addons. Choose the imported appearance in a panel's Edit Mode settings.
 
 ## References
 
@@ -72,3 +99,5 @@ To import AyijeUI alone, run `.\tools\Import-AyijeMedia.ps1`. The catalog lists 
 - [TOC format](https://warcraft.wiki.gg/wiki/TOC_format)
 - [Addon loading process](https://warcraft.wiki.gg/wiki/AddOn_loading_process)
 - [Creating a slash command](https://warcraft.wiki.gg/wiki/Creating_a_slash_command)
+- [LibEditMode documentation](https://github.com/p3lim-wow/LibEditMode/wiki)
+- [Third-party notices](THIRD_PARTY.md)
