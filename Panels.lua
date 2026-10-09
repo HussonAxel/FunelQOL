@@ -171,6 +171,7 @@ local function CreateRow(panel)
         else
             GameTooltip:SetText(data.name, 1, 0.82, 0)
             if data.valueText and data.valueText ~= "" then GameTooltip:AddLine(data.valueText, 1, 1, 1) end
+            for _, line in ipairs(data.tooltipLines or {}) do GameTooltip:AddLine(line, 1, 1, 1, true) end
         end
         GameTooltip:Show()
         self.isHovered = true
@@ -437,18 +438,18 @@ local function Render(panel)
         local iconSpace = compact and entry.icon and not entry.moneyAmount and Snap(20, pixel) or 0
         local availableWidth = rowWidth - labelStart - valueInset - valueGap - iconSpace - 30
         local naturalWidth = row.value:GetUnboundedStringWidth()
-        if entry.moneyAmount then
+        if entry.moneyAmount or entry.fitValue then
             -- Give all denominations room before shortening the label. On narrow
             -- panels, reduce just the money font until the full amount fits.
             local moneyFontSize = settings.fontSize
             while naturalWidth > availableWidth and moneyFontSize > 8 do
                 moneyFontSize = moneyFontSize - 1
                 row.value:SetFont(STANDARD_TEXT_FONT, moneyFontSize, "OUTLINE")
-                row.value:SetText(addon.GetMoneyText(entry.moneyAmount, moneyFontSize))
+                if entry.moneyAmount then row.value:SetText(addon.GetMoneyText(entry.moneyAmount, moneyFontSize)) end
                 naturalWidth = row.value:GetUnboundedStringWidth()
             end
         end
-        local valueWidth = math.ceil(math.min(entry.moneyAmount and availableWidth or rowWidth * 0.48, naturalWidth) / pixel) * pixel
+        local valueWidth = math.ceil(math.min((entry.moneyAmount or entry.fitValue) and availableWidth or rowWidth * 0.48, naturalWidth) / pixel) * pixel
         row.value:SetWidth(valueWidth)
         row.label:SetWidth(math.max(30, rowWidth - labelStart - valueInset - valueGap - valueWidth - iconSpace))
         row.label:SetWordWrap(entry.wrap or false)
@@ -722,6 +723,8 @@ function addon.InitializePanels()
     end
     events:RegisterEvent("ACHIEVEMENT_EARNED")
     events:RegisterEvent("CRITERIA_UPDATE")
+    for _, event in ipairs({ "WEEKLY_REWARDS_UPDATE", "WEEKLY_REWARDS_ITEM_CHANGED", "UPDATE_FACTION",
+        "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "MAJOR_FACTION_UNLOCKED", "GET_ITEM_INFO_RECEIVED" }) do events:RegisterEvent(event) end
     local delveEvents = { AREA_POIS_UPDATED = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true,
         ACTIVE_DELVE_DATA_UPDATE = true, UPDATE_ALL_UI_WIDGETS = true, ACHIEVEMENT_EARNED = true, CRITERIA_UPDATE = true }
     events:SetScript("OnEvent", function(_, event, info)

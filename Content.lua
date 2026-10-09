@@ -16,6 +16,8 @@ addon.contentTypes = {
     { text = fr and "Talents sélectionnés" or "Selected talents", value = "talents" },
     { text = fr and "Quêtes suivies" or "Tracked quests", value = "quests" },
     { text = "Delves", value = "delves" },
+    { text = fr and "Chambre forte" or "Great Vault", value = "vault" },
+    { text = fr and "Renoms · Midnight" or "Renown · Midnight", value = "renown" },
     { text = fr and "Menu personnalisé" or "Custom menu", value = "custom" },
 }
 
@@ -25,6 +27,8 @@ local function Sort(rows)
 end
 
 function addon.GetContentCatalog(kind)
+    if kind == "vault" then return addon.GetVaultCatalog() end
+    if kind == "renown" then return addon.GetRenownCatalog() end
     if kind == "quests" then return addon.GetQuestCatalog() end
     local rows = {}
     if kind == "currencies" then
@@ -83,7 +87,8 @@ function addon.GetContentSelection(settings, catalog)
     if type(list) ~= "table" then
         list = {}
         if #catalog > 0 then
-            for index = 1, 8 do list[index] = index <= 3 and catalog[index] and catalog[index].id or 0 end
+            local count = (settings.content == "renown" or settings.content == "vault") and 8 or 3
+            for index = 1, 8 do list[index] = index <= count and catalog[index] and catalog[index].id or 0 end
             settings.selections[settings.content] = list
         end
     end
@@ -114,6 +119,7 @@ function addon.GetMoneyText(amount, fontSize)
 end
 
 function addon.GetPanelRows(settings)
+    if settings.content == "vault" then return addon.GetVaultRows(settings) end
     if settings.content == "delves" then return addon.GetDelveRows(settings) end
     if settings.content == "preview" then return addon.GetPreviewRows(settings.rowCount) end
     if settings.content == "quests" then return addon.GetQuestRows(settings) end

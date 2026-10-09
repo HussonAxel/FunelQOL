@@ -80,7 +80,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -161,7 +161,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -333,7 +333,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -1033,3 +1033,114 @@ assert(not first.body.shown and first.questGroups[1].shown)
 SetSetting(first, "questTracker", true)
 assert(first.body.shown and not first.questGroups[1].shown)
 print("PASS: compact quest shell, centered header, value-side quest icons, wrapped objectives and metadata, full watched list, section separators, scrolling, collapse/folding and legacy presentation across themes, widths, fonts and scales.")
+
+-- Vault slots are sourced from live thresholds, never fixed seasonal counts.
+Enum.WeeklyRewardChestThresholdType = { Activities = 1, RankedPvP = 2, Raid = 3, World = 6 }
+local activities = {
+    { type = 3, index = 2, id = 32, threshold = 4, progress = 3, level = 1, rewards = {} },
+    { type = 1, index = 1, id = 11, threshold = 2, progress = 3, level = 8, rewards = {} },
+    { type = 6, index = 1, id = 61, threshold = 2, progress = 1, level = 8, rewards = {} },
+    { type = 3, index = 1, id = 31, threshold = 2, progress = 3, level = 1, rewards = {} },
+    { type = 1, index = 2, id = 12, threshold = 4, progress = 3, level = 8, rewards = {} },
+    { type = 1, index = 3, id = 13, threshold = 8, progress = 3, level = 8, rewards = {} },
+    { type = 3, index = 3, id = 33, threshold = 6, progress = 3, level = 1, rewards = {} },
+    { type = 6, index = 2, id = 62, threshold = 4, progress = 1, level = 8, rewards = {} },
+    { type = 6, index = 3, id = 63, threshold = 8, progress = 1, level = 8, rewards = {} },
+    { type = 2, index = 1, id = 21, threshold = 1250, progress = 0, rewards = {} },
+    { type = 0, index = 1, id = 1, threshold = 0, progress = 0, rewards = {} },
+}
+local vaultClaim, rewardLevel = false, 285
+C_WeeklyRewards = {
+    GetActivities = function() return activities end,
+    HasAvailableRewards = function() return vaultClaim end,
+    AreRewardsForCurrentRewardPeriod = function() return not vaultClaim end,
+    GetExampleRewardItemHyperlinks = function(id) return "item:" .. id end,
+}
+C_Item = { GetDetailedItemLevelInfo = function() return rewardLevel end }
+settings = FunelQOLCharDB.layouts[LEM.active].panel1
+settings.title = first.definition.title
+SetSetting(first, "content", "vault")
+assert(first.body.shown and first.title.text == "CHAMBRE FORTE")
+local vaultRows = persistedAddon.GetPanelRows(settings)
+assert(#vaultRows == 9 and vaultRows[1].vaultActivityID == 11 and vaultRows[1].valueText == "285")
+assert(vaultRows[2].valueText == "3 / 4" and vaultRows[4].vaultActivityID == 31)
+assert(vaultRows[1].tooltipLines[2]:find("3 / 2", 1, true), "Vault loses full progress in tooltip")
+assert(settings.selections.vault[3] == 6, "Vault categories are not all selected by default")
+settings.selections.vault = { 6, 1, 6, 0, 0, 0, 0, 0 }
+assert(persistedAddon.GetPanelRows(settings)[1].vaultActivityID == 61 and #persistedAddon.GetPanelRows(settings) == 6)
+vaultClaim = true
+local progressEvents
+for _, frame in ipairs(frames) do if frame.events.WEEKLY_REWARDS_UPDATE then progressEvents = frame end end
+assert(progressEvents and progressEvents.events.MAJOR_FACTION_RENOWN_LEVEL_CHANGED and progressEvents.events.UPDATE_FACTION)
+progressEvents.scripts.OnEvent(progressEvents, "WEEKLY_REWARDS_UPDATE")
+assert(first.rows[1].value.text == "À récupérer" and first.rows[1].data.tooltipLines[1])
+assert(first.rows[2].data.tooltipLines[#first.rows[2].data.tooltipLines]:find("précédente", 1, true))
+rewardLevel = nil
+assert(persistedAddon.GetPanelRows(settings)[5].valueText == "OK", "Uncached reward item level invents a value")
+rewardLevel = 285
+activities[3].progress = 8
+progressEvents.scripts.OnEvent(progressEvents, "WEEKLY_REWARDS_UPDATE")
+assert(first.rows[2].value.text == "285", "Vault progress event leaves stale values")
+local vaultAPI = C_WeeklyRewards
+C_WeeklyRewards = nil
+assert(persistedAddon.GetPanelRows(settings)[1].name == "Chambre forte indisponible")
+C_WeeklyRewards = vaultAPI
+
+-- Midnight renown includes locked factions but excludes older/hidden entries.
+local requestedExpansion
+local factionData = {
+    [1] = { name = "Current One", expansionID = 11, isUnlocked = true, renownLevel = 12, maxLevel = 20, renownReputationEarned = 1250, renownLevelThreshold = 2500, uiPriority = 1 },
+    [2] = { name = "Current Max", expansionID = 11, isUnlocked = true, renownLevel = 20, maxLevel = 20, renownLevelThreshold = 0, uiPriority = 2 },
+    [3] = { name = "Current Locked", expansionID = 11, isUnlocked = false, unlockDescription = "Finish the campaign", uiPriority = 3 },
+    [4] = { name = "Old Faction", expansionID = 10, isUnlocked = true, renownLevel = 30, uiPriority = 0 },
+    [5] = { name = "Current Four", expansionID = 11, isUnlocked = true, renownLevel = 3, renownReputationEarned = 0, renownLevelThreshold = 1000, uiPriority = 4 },
+    [6] = { name = "Hidden", expansionID = 11, isUnlocked = true },
+}
+C_MajorFactions = {
+    GetMajorFactionIDs = function(expansion) requestedExpansion = expansion; return { 4, 3, 2, 1, 5, 6, 1 } end,
+    GetMajorFactionData = function(id) return factionData[id] end,
+    IsMajorFactionHiddenFromExpansionPage = function(id) return id == 6 end,
+    HasMaximumRenown = function(id) return id == 2 end,
+}
+SetSetting(first, "content", "renown")
+local renownRows = persistedAddon.GetPanelRows(settings)
+assert(requestedExpansion == 11 and #renownRows == 4 and settings.selections.renown[4] == 5)
+assert(renownRows[1].valueText == "12 · 50%" and renownRows[2].valueText == "20 · MAX")
+assert(renownRows[3].valueText == "Verrouillé" and renownRows[3].tooltipLines[2] == "Finish the campaign")
+assert(first.body.shown and first.rows[1].data.factionID == 1)
+factionData[1].renownLevel, factionData[1].renownReputationEarned = 13, 0
+progressEvents.scripts.OnEvent(progressEvents, "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", 1)
+assert(first.rows[1].value.text == "13 · 0%")
+persistedAddon.ConfigurePanel(1)
+assert(LEM.settings[first][1].values, "Renown content is missing from Edit Mode")
+settings.selections.renown = { 3, 1, 0, 0, 0, 0, 0, 0 }
+persistedAddon.RefreshPanels()
+assert(first.rows[1].data.factionID == 3 and not first.rows[3].shown)
+LEM.callbacks.create("ProgressCopy", nil, LEM.active)
+settings.selections.renown[1] = 2
+assert(FunelQOLCharDB.layouts.ProgressCopy.panel1.selections.renown[1] == 3)
+local factionsAPI = C_MajorFactions
+C_MajorFactions = nil
+assert(persistedAddon.GetPanelRows(settings)[1].name == persistedAddon.panelText.empty)
+C_MajorFactions = factionsAPI
+for _, content in ipairs({ "vault", "renown" }) do
+    SetSetting(first, "content", content)
+    for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+        SetSetting(first, "style", style)
+        for _, width in ipairs({ 180, 420 }) do
+            SetSetting(first, "width", width)
+            for _, fontSize in ipairs({ 10, 18 }) do
+                SetSetting(first, "fontSize", fontSize)
+                for _, row in ipairs(first.rows) do
+                    if row.shown then
+                        assert(row.value.width >= row.value:GetUnboundedStringWidth(), "Progress tracker value is clipped")
+                        local iconLeft = row.width + row.icon.point[4] - row.icon.width
+                        assert(row.label.point[2] + row.label.width <= iconLeft, "Progress tracker icon overlaps label")
+                        row.scripts.OnEnter(row)
+                    end
+                end
+            end
+        end
+    end
+end
+print("PASS: vault live slots/thresholds/reward levels, previous-period claim status, ordered category filtering, missing APIs/item cache, Midnight-only renown, max/locked factions, live events, editor/layout isolation, compact bounds and tooltips.")
