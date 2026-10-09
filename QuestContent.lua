@@ -2,6 +2,7 @@ local _, addon = ...
 local text = addon.panelText
 local fr = GetLocale() == "frFR"
 text.questAuto = fr and "Suivre automatiquement les quêtes" or "Follow tracked quests automatically"
+text.questReadable = fr and "Présentation des quêtes par groupe" or "Group quest presentation"
 text.questAll = fr and "Afficher toutes les quêtes suivies" or "Show all tracked quests"
 text.questHeight = fr and "Hauteur maximale du suivi" or "Maximum tracker height"
 text.questScrollHint = fr and "Molette : faire défiler" or "Mouse wheel: scroll"
@@ -51,9 +52,10 @@ local function Metadata(id)
         color = addon.questColors.recurring
     end
     if C_QuestLog.IsWorldQuest and C_QuestLog.IsWorldQuest(id) then labels[#labels + 1] = fr and "Expédition" or "World quest" end
+    local badge = table.concat(labels, " · ")
     if #labels == 0 and info then labels[1] = fr and "Quête normale" or "Normal quest" end
     if info and info.level and info.level > 0 then labels[#labels + 1] = (fr and "Niv. " or "Lv. ") .. info.level end
-    return table.concat(labels, " · "), color
+    return table.concat(labels, " · "), color, badge
 end
 
 local function ObjectiveProgress(id, objective)
@@ -101,7 +103,7 @@ function addon.GetQuestRows(settings)
             seen[id] = true
             local objectives = C_QuestLog.GetQuestObjectives(id)
             local complete, failed = C_QuestLog.IsComplete(id), C_QuestLog.IsFailed(id)
-            local details, color = Metadata(id)
+            local details, color, badge = Metadata(id)
             local finished, progress = 0, 0
             for _, objective in ipairs(objectives or {}) do
                 if objective.finished then finished = finished + 1 end
@@ -114,14 +116,16 @@ function addon.GetQuestRows(settings)
             if progressText and not complete and not failed then status = progressText .. " · " .. status end
             rows[#rows + 1] = { name = quest.name .. (settings.questDetails and details ~= "" and "\n" .. details or ""),
                 valueText = status, questID = id, value = not failed and progress or 0, maximum = not failed and progress and 100 or 0,
-                questTitle = quest.name, questDetails = details, questProgressText = progressText,
+                questTitle = quest.name, questDetails = details, questBadge = badge, questProgressText = progressText,
+                isQuestHeader = true, questComplete = complete, questFailed = failed,
+                labelColor = complete and { 0.3, 1, 0.3 } or { 1, 0.82, 0 },
                 borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true }
             local function Detail(name, valueText, value, maximum, autoComplete)
                 if not name or name == "" then return end
                 rows[#rows + 1] = { name = "  " .. name, valueText = valueText or "", value = value, maximum = maximum,
                     questID = id, questTitle = quest.name, questDetails = details, questProgressText = progressText,
                     borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true,
-                    autoComplete = autoComplete, labelColor = complete and { 0.3, 1, 0.3 } or { 1, 1, 1 } }
+                    questObjective = true, progressBar = maximum and maximum > 0, autoComplete = autoComplete, labelColor = complete and { 0.3, 1, 0.3 } or { 1, 1, 1 } }
             end
             if settings.questObjectives and complete then
                 local index = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)
@@ -144,7 +148,9 @@ function addon.GetQuestRows(settings)
                     rows[#rows + 1] = { name = "  " .. objective.text, valueText = valueText,
                         value = value, maximum = maximum, questID = id, questTitle = quest.name,
                         questDetails = details, questProgressText = progressText,
-                        borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true }
+                        borderColor = settings.questColors and color or nil, objectives = objectives, wrap = true,
+                        questObjective = true, progressBar = objective.type == "progressbar",
+                        labelColor = objective.finished and { 0.3, 1, 0.3 } or { 0.9, 0.9, 0.9 } }
                 end
                 local waypoint = C_QuestLog.GetNextWaypointText and C_QuestLog.GetNextWaypointText(id)
                 if waypoint and waypoint ~= "" then

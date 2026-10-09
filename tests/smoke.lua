@@ -369,6 +369,7 @@ function QuestMapFrame_OpenToQuestDetails(id) openedQuest = id end
 first = persistedAddon.panels[1]
 settings = FunelQOLCharDB.layouts.Modern.panel1
 SetSetting(first, "content", "quests")
+SetSetting(first, "questReadable", false)
 assert(settings.questAuto and first.rows[1].data.questID == 101 and first.rows[1].data.valueText == "70% · 1 / 2")
 assert(first.rows[2].data.value == 2 and first.rows[2].data.maximum == 5 and first.rows[2].height > first.rows[3].height, "Objective text does not wrap")
 assert(first.rows[4].data.questID == 102 and first.rows[4].data.valueText == persistedAddon.panelText.questActive, "Zero objectives falsely reported ready")
@@ -547,3 +548,44 @@ for _, row in ipairs(first.rows) do assert(not row.shown or not row.data.name:fi
 SetSetting(first, "questAll", false)
 assert(first.rows[1].shown and not first.rows[2].shown and first.scrollMaximum == 0 and not first.scrollHint.shown)
 print("PASS: all watched quests, campaign classification fallback, hand-in/auto-completion/waypoints, optional objective text, money requirements, live timers and bounded mouse-wheel scrolling.")
+-- Readability: one surface per quest, full-width titles and a clear text hierarchy.
+function methods:SetTextColor(...) self.textColor = { ... } end
+SetSetting(first, "questAll", true)
+SetSetting(first, "questObjectives", true)
+SetSetting(first, "questReadable", true)
+SetSetting(first, "showBars", true)
+local activeGroups, activeHeaders = 0, 0
+local readyHeader, timedObjective
+for _, group in ipairs(first.questGroups) do if group.shown then activeGroups = activeGroups + 1 end end
+for _, row in ipairs(first.rows) do
+    if row.shown then
+        assert(not row.border.shown and not row.background.shown, "Objectives still use individual framed boxes")
+        assert(not row.value.shown, "Right counters steal title width")
+        if row.data.isQuestHeader then
+            activeHeaders = activeHeaders + 1
+            assert(row.label.text == row.data.questTitle and row.label.width > first.width - 25)
+            assert(not row.bar.shown, "Overall quest progress fills the title background")
+            assert(not row.meta.text:find("Niv.", 1, true) and not row.meta.text:find("Quête normale", 1, true), "Repeated metadata clutters title")
+            if row.data.questComplete then readyHeader = row end
+        elseif row.data.questObjective then
+            assert(row.label.text:sub(1, 2) == "- ", "Objective indentation/bullet missing")
+            if row.data.name:find("Temps restant", 1, true) then timedObjective = row end
+            if not row.data.progressBar then assert(not row.bar.shown, "Ordinary count objective still has a progress bar") end
+        end
+    end
+end
+assert(activeGroups == 14 and activeGroups == activeHeaders, "Quests are not grouped into one surface each")
+assert(readyHeader and readyHeader.label.textColor[2] == 1 and readyHeader.label.textColor[1] < 0.5)
+assert(timedObjective and timedObjective.label.text:find("1:38", 1, true) and timedObjective.bar.height < 6, "Compact presentation hides timer value")
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    local group = first.questGroups[1]
+    assert(group.height > first.rows[1].height and group.border.shown)
+    assert(group.border.borderColor[1] == persistedAddon.questColors.campaign[1])
+end
+SetSetting(first, "questReadable", false)
+assert(not first.questGroups[1].shown and first.rows[1].border.shown and first.rows[1].value.shown)
+SetSetting(first, "questReadable", true)
+SetSetting(first, "content", "preview")
+assert(not first.questGroups[1].shown and first.rows[1].border.shown and not first.rows[1].meta.shown)
+print("PASS: one group per quest, full-width larger titles, white/green objective hierarchy, compact metadata, retained timer values, thin progress bars, all border styles and presentation switching.")

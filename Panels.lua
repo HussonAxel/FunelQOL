@@ -37,7 +37,7 @@ local function Settings(id, layoutName)
         title = definition.title, width = 260, scale = 1, enabled = true,
         collapsed = false, style = "blizzard", opacity = 0.94,
         fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
-        questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
+        questReadable = true, questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -134,6 +134,9 @@ local function CreateRow(panel)
     row.value = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.value:SetPoint("RIGHT", -6, 0)
     row.value:SetJustifyH("RIGHT")
+    row.meta = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.meta:SetJustifyH("LEFT")
+    row.meta:SetWordWrap(true)
     row:SetScript("OnEnter", function(self)
         local data = self.data
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
@@ -197,15 +200,45 @@ local function Render(panel)
     panel.arrow:SetText(settings.collapsed and "+" or "-")
     local data = addon.GetPanelRows(settings)
     local renderedHeight = 0
+    local readable = settings.content == "quests" and settings.questReadable
+    local groupIndex, currentGroup, groupStart = 0, nil, 0
+    local function FinishGroup()
+        if not currentGroup then return end
+        local bottomPadding = Snap(5, pixel)
+        currentGroup:SetHeight(renderedHeight - groupStart + bottomPadding)
+        renderedHeight = renderedHeight + bottomPadding + math.ceil((8 + outerInk * 2) / pixel) * pixel
+    end
     for index, entry in ipairs(data) do
         local row = panel.rows[index]
         if not row then row = CreateRow(panel); panel.rows[index] = row end
         row.data = entry
+        row.meta:Hide()
+        row.value:Show()
+        if readable and entry.isQuestHeader then
+            FinishGroup()
+            groupIndex = groupIndex + 1
+            panel.questGroups = panel.questGroups or {}
+            currentGroup = panel.questGroups[groupIndex]
+            if not currentGroup then
+                currentGroup = CreateFrame("Frame", nil, panel.content, "BackdropTemplate")
+                currentGroup:EnableMouse(false)
+                currentGroup:SetFrameLevel(panel.content:GetFrameLevel())
+                panel.questGroups[groupIndex] = currentGroup
+            end
+            groupStart = renderedHeight
+            currentGroup:ClearAllPoints()
+            currentGroup:SetPoint("TOPLEFT", clipPadding, -clipPadding - groupStart)
+            currentGroup:SetWidth(width)
+            SetBackdrop(currentGroup, style, settings.opacity * 0.7, pixel, currentGroup:GetFrameLevel(), entry.borderColor)
+            currentGroup:Show()
+        end
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", clipPadding, -clipPadding - renderedHeight)
         row:SetWidth(width)
         row:SetHeight(rowHeight)
         SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel(), entry.borderColor)
+        row.background:SetShown(not readable)
+        row.border:SetShown(not readable)
         row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.value:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
         row.bar:SetStatusBarTexture(style.fill)
@@ -235,12 +268,55 @@ local function Render(panel)
         local labelColor = entry.labelColor or { 1, 0.82, 0 }
         row.label:SetTextColor(labelColor[1], labelColor[2], labelColor[3])
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
+        if readable and (entry.isQuestHeader or entry.questObjective) then
+            local isHeader = entry.isQuestHeader
+            local fontSize = settings.fontSize + (isHeader and 2 or 1)
+            row.label:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            if row.label.SetShadowOffset then row.label:SetShadowOffset(1, -1); row.label:SetShadowColor(0, 0, 0, 1) end
+            row.label:ClearAllPoints()
+            row.label:SetPoint("TOPLEFT", Snap(isHeader and 10 or 16, pixel), -Snap(isHeader and 8 or 2, pixel))
+            row.label:SetWidth(width - Snap(isHeader and 20 or 26, pixel))
+            local label = isHeader and entry.questTitle or "- " .. entry.name:gsub("^%s+", "")
+            local counter = entry.valueText or ""
+            if not isHeader and counter ~= "" and (entry.progressBar or (counter:find("%d%s*/%s*%d")
+                and not label:gsub("%s+", ""):find(counter:gsub("%s+", ""), 1, true))) then label = label .. " · " .. counter end
+            row.label:SetText(label)
+            row.value:Hide()
+            row.bar:Hide()
+            local labelHeight = row.label:GetStringHeight()
+            if isHeader then
+                local metadata = settings.questDetails and (entry.questBadge or "") or ""
+                local summary = entry.questFailed and text.questFailed or not entry.questProgressText and entry.valueText == text.questLoading and text.questLoading
+                    or not entry.questComplete and entry.value and entry.value > 0 and entry.questProgressText or ""
+                metadata = metadata .. (metadata ~= "" and summary ~= "" and " · " or "") .. summary
+                row.meta:SetFont(STANDARD_TEXT_FONT, math.max(10, settings.fontSize - 1), "")
+                row.meta:SetTextColor(0.65, 0.7, 0.75)
+                row.meta:ClearAllPoints()
+                row.meta:SetPoint("TOPLEFT", Snap(10, pixel), -Snap(8 + labelHeight + 3, pixel))
+                row.meta:SetWidth(width - Snap(20, pixel))
+                row.meta:SetText(metadata)
+                row.meta:SetShown(metadata ~= "")
+                actualHeight = Snap(labelHeight + 14 + (metadata ~= "" and row.meta:GetStringHeight() + 3 or 0), pixel)
+            else
+                actualHeight = Snap(labelHeight + 5, pixel)
+                if settings.showBars and entry.progressBar and (entry.maximum or 0) > 0 then
+                    actualHeight = actualHeight + Snap(9, pixel)
+                    row.bar:ClearAllPoints()
+                    row.bar:SetPoint("BOTTOMLEFT", Snap(16, pixel), Snap(2, pixel))
+                    row.bar:SetPoint("BOTTOMRIGHT", -Snap(10, pixel), Snap(2, pixel))
+                    row.bar:SetHeight(Snap(4, pixel))
+                    row.bar:Show()
+                end
+            end
+        end
         row:SetHeight(actualHeight)
         row.icon:ClearAllPoints()
         row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((actualHeight - Snap(16, pixel)) / 2, pixel))
-        renderedHeight = renderedHeight + actualHeight + gap
+        renderedHeight = renderedHeight + actualHeight + (readable and Snap(2, pixel) or gap)
         row:Show()
     end
+    FinishGroup()
+    for index = groupIndex + 1, #(panel.questGroups or {}) do panel.questGroups[index]:Hide() end
     for index = #data + 1, #panel.rows do panel.rows[index]:Hide() end
     local visibleHeight = settings.content == "quests" and math.min(renderedHeight, Snap(settings.questHeight, pixel)) or renderedHeight
     panel.content:SetSize(width + clipPadding * 2, renderedHeight + clipPadding * 2)
@@ -295,6 +371,7 @@ local function AddSettings(panel)
     local controls = {}
     for _, spec in ipairs({
         { key = "content", label = text.content, kind = LEM.SettingType.Dropdown, default = "preview" },
+        { key = "questReadable", label = text.questReadable, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAuto", label = text.questAuto, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAll", label = text.questAll, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questHeight", label = text.questHeight, kind = LEM.SettingType.Slider, default = 400, min = 150, max = 800, step = 25 },
@@ -320,7 +397,7 @@ local function AddSettings(panel)
             hidden = function(layoutName)
                 local settings = Settings(id, layoutName)
                 if key == "rowCount" then return settings.content ~= "preview" end
-                if key == "questAuto" or key == "questObjectives" or key == "questDetails" or key == "questColors" or key == "questHeight" then return settings.content ~= "quests" end
+                if key == "questReadable" or key == "questAuto" or key == "questObjectives" or key == "questDetails" or key == "questColors" or key == "questHeight" then return settings.content ~= "quests" end
                 if key == "questAll" then return settings.content ~= "quests" or not settings.questAuto end
                 if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto or settings.questAll end
                 return false
