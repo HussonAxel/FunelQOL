@@ -14,6 +14,7 @@ addon.contentTypes = {
     { text = fr and "Monnaies" or "Currencies", value = "currencies" },
     { text = fr and "Métiers" or "Professions", value = "professions" },
     { text = fr and "Talents sélectionnés" or "Selected talents", value = "talents" },
+    { text = fr and "Quêtes suivies" or "Tracked quests", value = "quests" },
     { text = fr and "Menu personnalisé" or "Custom menu", value = "custom" },
 }
 
@@ -23,6 +24,7 @@ local function Sort(rows)
 end
 
 function addon.GetContentCatalog(kind)
+    if kind == "quests" then return addon.GetQuestCatalog() end
     local rows = {}
     if kind == "currencies" then
         rows[1] = { id = -1, name = text.money, icon = 133784, valueText = C_CurrencyInfo.GetCoinTextureString(GetMoney()) }
@@ -99,6 +101,7 @@ end
 
 function addon.GetPanelRows(settings)
     if settings.content == "preview" then return addon.GetPreviewRows(settings.rowCount) end
+    if settings.content == "quests" then return addon.GetQuestRows(settings) end
     local rows = {}
     if settings.content == "custom" then
         if type(settings.customRows) ~= "table" then settings.customRows = {} end

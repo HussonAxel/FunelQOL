@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.3.0 provides two configurable panels with live currencies, professions, selected talents, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.4.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -35,7 +35,7 @@ Positions and settings are stored per character and per Blizzard layout name in 
 ### Configure panel content
 
 1. Run `/reload`, then `/funelqol edit`.
-2. Select a FunelQOL panel and choose **Content**: Preview, Currencies, Professions, Selected talents, or Custom menu.
+2. Select a FunelQOL panel and choose **Content**: Preview, Currencies, Professions, Selected talents, Tracked quests, or Custom menu.
 3. Click **Configure rows** (French: **Configurer les lignes**). You can also reopen this editor with `/funelqol content 1` or `/funelqol content 2`.
 4. Choose up to eight entries with the dropdowns. Use **↑ / ↓** to reorder them and **×** beside a row to remove it. Custom rows have a label and a value field instead of a dropdown.
 5. Close the editor and exit Edit Mode. Changes apply immediately; `/reload` saves them to disk.
@@ -45,9 +45,10 @@ Each content type keeps its own selection, so switching to Preview does not eras
 - **Currencies:** current wallet quantity, optional wallet-cap bar, and gold. Seasonal total-earned caps are not displayed as wallet-cap bars. The dropdown reflects the visible Blizzard currency list: expand categories in the character currency tab and reopen the editor to expose more entries. You can also enter a numeric currency ID at the bottom of the editor. Selected currencies remain readable when their category is collapsed.
 - **Professions:** learned professions, including secondary professions, with their reported skill rank and maximum. The expansion skill-line name is used when available.
 - **Selected talents:** a selection of talents from the active configuration, with icon, spell tooltip, and rank. Unselected talents and inactive hero-tree talents are hidden; their selections are retained for when they become active again. This is a read-only display, not a talent loadout switcher.
+- **Tracked quests:** automatically follows up to three watched quests by default, including tracked world quests in watch order. Change **Automatic quest count** (1–8) and **Show quest objectives** in Edit Mode. Quest titles show completed-objective counts, ready-to-turn-in or failed status; objective rows show live counts/progress bars and wrap long text. Hover for the full objectives; click a quest or objective to open quest details outside combat. Choosing, moving, or clearing an entry in **Configure rows** disables automatic tracking and uses your saved manual order (up to eight quests). Enable **Follow tracked quests automatically** to resume automatic tracking. Untracked quests disappear but their manual IDs are retained. Quests must be tracked through Blizzard's quest log; this panel is an additional display. The Blizzard tracker, scenarios, achievements, and quest-item buttons are unchanged.
 - **Custom menu:** up to eight static label/value rows (80 characters per field), such as notes or reminders. These rows do not execute scripts or actions.
 
-Currency, money, skill, specialization, and talent events refresh the displayed values. The addon does not alter Blizzard's existing frames or create protected action buttons. Buffs, pets, and objectives are not connected yet.
+Currency, money, skill, specialization, and talent events refresh the displayed values. The addon does not alter Blizzard's existing frames or create protected action buttons. Buffs, pets, scenarios, and achievement objectives are not connected yet.
 
 ## Files and development
 
@@ -55,6 +56,7 @@ Currency, money, skill, specialization, and talent events refresh the displayed 
 - `Core.lua`: addon namespace, saved setting initialization, login event handling, and slash commands.
 - `PanelPreview.lua`: localized labels and static preview rows.
 - `Content.lua`: live data providers and ordered selections.
+- `QuestContent.lua`: tracked quest/world quest catalog and live objective rows.
 - `ContentEditor.lua`: native row editor for selections, ordering, and custom text.
 - `Panels.lua`: shared panel rendering and per-layout Edit Mode integration.
 - `Media.lua`: local artwork catalog.
@@ -73,10 +75,10 @@ New Lua files must be listed in `FunelQOL.toc` in their required load order. Eac
 6. Open `/funelqol edit`, move both panels, change their width/scale, hide one, then exit Edit Mode. Re-enter: the hidden panel must be selectable again.
 7. Switch to another Blizzard layout, then return: the original positions and settings must return. Copy and rename a custom layout, then reload and verify the panels.
 8. Toggle a header, rename it with `/funelqol title 1 Mon menu`, then reload: both the title and collapsed state must persist. Adjust text size, row height/count, opacity, and bar visibility.
-9. Choose each content type, configure and reorder entries, change a currency/skill value, then reload and switch layouts to verify persistence. Verify currency and talent tooltips.
+9. Choose each content type, configure and reorder entries, change a currency/skill value, then reload and switch layouts to verify persistence. Verify currency and talent tooltips. For quests, track/untrack quests and world quests, complete an objective, test automatic/manual selection and quest detail clicks, then reload and switch layouts.
 10. Select Ayije and Pixels appearances after importing media, and verify borders, bar fills, text alignment, and tooltips in-game.
 
-The mocked Lua smoke check covers preview settings, live content and updates, seasonal currency caps, sparse profession slots, talent filtering, row editor selection/order/removal, custom text, reload persistence, layout isolation, hidden-frame recovery, and slash commands:
+The mocked Lua smoke check covers preview settings, live content and updates, seasonal currency caps, sparse profession slots, talent filtering, quest watch/progress/completion/loading states, wrapping and click guards, row editor selection/order/removal, custom text, reload persistence, layout isolation, hidden-frame recovery, and slash commands:
 
 ```powershell
 npm exec --yes --package=fengari-node-cli -- fengari tests/smoke.lua
@@ -124,3 +126,5 @@ To import AyijeUI alone, run `.\tools\Import-AyijeMedia.ps1`. The catalog lists 
 - [Third-party notices](THIRD_PARTY.md)
 
 API implementation references: [Blizzard currency documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/CurrencyInfoDocumentation.lua), [traits documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/SharedTraitsDocumentation.lua), and [Blizzard professions book](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_ProfessionsBook/Blizzard_ProfessionsBook.lua).
+
+Quest references: [Blizzard quest API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLogDocumentation.lua) and [Blizzard quest objective tracker](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_ObjectiveTracker/Blizzard_QuestObjectiveTracker.lua).

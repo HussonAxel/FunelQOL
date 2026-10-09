@@ -37,6 +37,7 @@ local function Settings(id, layoutName)
         title = definition.title, width = 260, scale = 1, enabled = true,
         collapsed = false, style = "blizzard", opacity = 0.94,
         fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
+        questAuto = true, questLimit = 3, questObjectives = true,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -53,6 +54,7 @@ local function Settings(id, layoutName)
     settings.fontSize = math.floor(math.max(10, math.min(18, settings.fontSize)))
     settings.rowHeight = math.floor(math.max(22, math.min(34, settings.rowHeight)))
     settings.rowCount = math.floor(math.max(1, math.min(8, settings.rowCount)))
+    settings.questLimit = math.floor(math.max(1, math.min(8, settings.questLimit)))
     return settings
 end
 
@@ -123,7 +125,12 @@ local function CreateRow(panel)
     row:SetScript("OnEnter", function(self)
         local data = self.data
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        if data.currencyID then
+        if data.questID then
+            GameTooltip:SetText(data.questTitle, 1, 0.82, 0)
+            for _, objective in ipairs(data.objectives or {}) do
+                GameTooltip:AddLine(objective.text, objective.finished and 0.3 or 1, 1, objective.finished and 0.3 or 1, true)
+            end
+        elseif data.currencyID then
             GameTooltip:SetCurrencyByID(data.currencyID)
         elseif data.spellID then
             GameTooltip:SetSpellByID(data.spellID)
@@ -133,6 +140,11 @@ local function CreateRow(panel)
         end
         GameTooltip:Show()
         self.border:SetBackdropBorderColor(0.85, 0.72, 0.38, 1)
+    end)
+    row:SetScript("OnClick", function(self)
+        if not editing and self.data.questID and not InCombatLockdown() then
+            QuestMapFrame_OpenToQuestDetails(self.data.questID)
+        end
     end)
     row:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
@@ -154,7 +166,6 @@ local function Render(panel)
     local gap = math.ceil((3 + outerInk * 2) / pixel - 0.001) * pixel
     local contentTop = headerHeight + gap
     local rowHeight = Snap(settings.rowHeight, pixel)
-    local rowStep = rowHeight + gap
     panel:SetWidth(width)
     panel.header:SetHeight(headerHeight)
     panel.content:ClearAllPoints()
@@ -167,12 +178,13 @@ local function Render(panel)
     panel.editModeName = "FunelQOL · " .. settings.title
     panel.arrow:SetText(settings.collapsed and "+" or "-")
     local data = addon.GetPanelRows(settings)
+    local renderedHeight = 0
     for index, entry in ipairs(data) do
         local row = panel.rows[index]
         if not row then row = CreateRow(panel); panel.rows[index] = row end
         row.data = entry
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, -(index - 1) * rowStep)
+        row:SetPoint("TOPLEFT", 0, -renderedHeight)
         row:SetWidth(width)
         row:SetHeight(rowHeight)
         SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel())
@@ -200,12 +212,18 @@ local function Render(panel)
         local valueWidth = math.min(settings.width * 0.48, row.value:GetStringWidth())
         row.value:SetWidth(valueWidth)
         row.label:SetWidth(math.max(30, settings.width - valueWidth - (entry.icon and 36 or 18)))
+        row.label:SetWordWrap(entry.wrap or false)
         row.label:SetText(entry.name)
+        local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
+        row:SetHeight(actualHeight)
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((actualHeight - Snap(16, pixel)) / 2, pixel))
+        renderedHeight = renderedHeight + actualHeight + gap
         row:Show()
     end
     for index = #data + 1, #panel.rows do panel.rows[index]:Hide() end
     panel.content:SetShown(not settings.collapsed)
-    panel:SetHeight(settings.collapsed and headerHeight or (contentTop + #data * rowStep))
+    panel:SetHeight(settings.collapsed and headerHeight or (contentTop + renderedHeight))
     -- Rebuild from the saved anchor before snapping the visible top-left edge.
     -- GetLeft/GetTop are expressed in the frame's own scaled coordinates.
     panel:ClearAllPoints()
@@ -246,6 +264,9 @@ local function AddSettings(panel)
     local controls = {}
     for _, spec in ipairs({
         { key = "content", label = text.content, kind = LEM.SettingType.Dropdown, default = "preview" },
+        { key = "questAuto", label = text.questAuto, kind = LEM.SettingType.Checkbox, default = true },
+        { key = "questLimit", label = text.questLimit, kind = LEM.SettingType.Slider, default = 3, min = 1, max = 8, step = 1 },
+        { key = "questObjectives", label = text.questObjectives, kind = LEM.SettingType.Checkbox, default = true },
         { key = "enabled", label = text.enabled, kind = LEM.SettingType.Checkbox, default = true },
         { key = "collapsed", label = text.collapsed, kind = LEM.SettingType.Checkbox, default = false },
         { key = "width", label = text.width, kind = LEM.SettingType.Slider, default = 260, min = 180, max = 420, step = 10 },
@@ -261,7 +282,13 @@ local function AddSettings(panel)
         controls[#controls + 1] = {
             name = spec.label, kind = spec.kind, default = spec.default,
             minValue = spec.min, maxValue = spec.max, valueStep = spec.step,
-            hidden = key == "rowCount" and function(layoutName) return Settings(id, layoutName).content ~= "preview" end or nil,
+            hidden = function(layoutName)
+                local settings = Settings(id, layoutName)
+                if key == "rowCount" then return settings.content ~= "preview" end
+                if key == "questAuto" or key == "questObjectives" then return settings.content ~= "quests" end
+                if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto end
+                return false
+            end,
             values = key == "content" and addon.contentTypes or key == "style" and { { text = "Blizzard", value = "blizzard" }, { text = "Ayije", value = "ayije" }, { text = "Pixels", value = "pixels" } } or nil,
             get = function(layoutName) return Settings(id, layoutName)[key] end,
             set = function(layoutName, value)
@@ -273,13 +300,13 @@ local function AddSettings(panel)
     end
     LEM:AddFrameSettings(panel, controls)
     LEM:AddFrameSettingsButtons(panel, { { text = text.configure, click = function()
-        addon.OpenContentEditor(Settings(id), function() Render(panel) end)
+        addon.OpenContentEditor(Settings(id), function() Render(panel); LEM:RefreshFrameSettings(panel) end)
     end } })
 end
 
 function addon.ConfigurePanel(index)
     local panel = panels[index]
-    if panel then addon.OpenContentEditor(Settings(panel.definition.id), function() Render(panel) end) end
+    if panel then addon.OpenContentEditor(Settings(panel.definition.id), function() Render(panel); LEM:RefreshFrameSettings(panel) end) end
 end
 
 function addon.InitializePanels()
@@ -345,7 +372,7 @@ function addon.InitializePanels()
     local events = CreateFrame("Frame")
     events:RegisterEvent("UI_SCALE_CHANGED")
     events:RegisterEvent("DISPLAY_SIZE_CHANGED")
-    for _, event in ipairs({ "PLAYER_MONEY", "CURRENCY_DISPLAY_UPDATE", "SKILL_LINES_CHANGED", "TRADE_SKILL_LIST_UPDATE", "TRAIT_CONFIG_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "SPELLS_CHANGED" }) do
+    for _, event in ipairs({ "PLAYER_MONEY", "CURRENCY_DISPLAY_UPDATE", "SKILL_LINES_CHANGED", "TRADE_SKILL_LIST_UPDATE", "TRAIT_CONFIG_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "SPELLS_CHANGED", "QUEST_LOG_UPDATE", "QUEST_WATCH_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_DATA_LOAD_RESULT", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN" }) do
         events:RegisterEvent(event)
     end
     events:SetScript("OnEvent", addon.RefreshPanels)

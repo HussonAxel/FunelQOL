@@ -56,6 +56,7 @@ function addon.OpenContentEditor(settings, refresh)
     hint:SetWidth(520)
     hint:SetJustifyH("LEFT")
     hint:SetText(text.hint)
+    if settings.content == "quests" then hint:SetText(text.questHint) end
     if settings.content == "preview" then
         hint:SetText(text.content .. ": " .. text.preview)
         window.update = function() title:SetText("FunelQOL · " .. settings.title) end
@@ -112,7 +113,11 @@ function addon.OpenContentEditor(settings, refresh)
             slot.dropdown:SetupMenu(function(_, root)
                 root:SetScrollMode(300)
                 local function Choice(name, id)
-                    root:CreateRadio(name, function() return list[index] == id end, function() list[index] = id; Update() end)
+                    root:CreateRadio(name, function() return list[index] == id end, function()
+                        list[index] = id
+                        if settings.content == "quests" then settings.questAuto = false end
+                        Update()
+                    end)
                 end
                 Choice(text.none, 0)
                 for _, entry in ipairs(catalog) do Choice(entry.name, entry.id) end
@@ -122,12 +127,14 @@ function addon.OpenContentEditor(settings, refresh)
             local target = index + offset
             if target < 1 or target > 8 then return end
             local entries = settings.content == "custom" and settings.customRows or list
+            if settings.content == "quests" then settings.questAuto = false end
             entries[index], entries[target] = entries[target], entries[index]
             Update()
         end
         Button(editor, "↑", 414, y, 32, function() Move(-1) end)
         Button(editor, "↓", 450, y, 32, function() Move(1) end)
         Button(editor, "×", 486, y, 32, function()
+            if settings.content == "quests" then settings.questAuto = false end
             if settings.content == "custom" then settings.customRows[index] = nil else list[index] = 0 end
             Update()
         end)

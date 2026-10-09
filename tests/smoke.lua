@@ -34,6 +34,7 @@ function methods:SetTexture(texture) self.texture = texture; return true end
 function methods:SetText(text) self.text = text end
 function methods:SetFont(font, size) self.font, self.fontSize = font, size end
 function methods:GetStringWidth() return #(self.text or "") * 6 end
+function methods:GetStringHeight() return math.ceil(#(self.text or "") * 6 / math.max(1, self.width or 200)) * (self.fontSize or 11) end
 function methods:SetBackdrop(backdrop) self.backdrop = backdrop end
 function methods:SetStatusBarTexture(texture) self.texture = texture; self.barColor = nil end
 function methods:GetStatusBarTexture() return self end
@@ -67,12 +68,13 @@ function ShowUIPanel(frame) assert(frame == EditModeManagerFrame); editOpened = 
 
 local LEM = { callbacks = {}, settings = {}, positions = {}, active = "Modern", SettingType = { Checkbox = 1, Slider = 2, Dropdown = 3 } }
 function LEM:RegisterCallback(event, callback) self.callbacks[event] = callback end
+function LEM:RefreshFrameSettings() end
 function LEM:GetActiveLayoutName() return self.active end
 function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -153,7 +155,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -325,7 +327,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -334,3 +336,78 @@ persistedCore.scripts.OnEvent(persistedCore, "PLAYER_LOGIN")
 assert(persistedAddon.panels[1].rows[1].data.name == "Notes" and persistedAddon.panels[1].rows[2].data.name == "Bank")
 assert(persistedAddon.panels[2].rows[1].data.name == "Aperçu 1")
 print("PASS: live currencies, seasonal caps, money events, sparse professions, selected talents, custom rows, native editor selection/reorder/remove/reuse, manual IDs, layout isolation and deep copies.")
+-- Quest tracking: watch order, world quests, live objectives and manual selection.
+local watches, worldWatches = { 101, 102 }, { 102, 103 }
+local questProgress, questComplete = 2, false
+local requestedQuests = {}
+C_QuestLog = {
+    GetNumQuestWatches = function() return #watches end,
+    GetQuestIDForQuestWatchIndex = function(index) return watches[index] end,
+    GetNumWorldQuestWatches = function() return #worldWatches end,
+    GetQuestIDForWorldQuestWatchIndex = function(index) return worldWatches[index] end,
+    GetTitleForQuestID = function(id) return id ~= 104 and "Quest " .. id or nil end,
+    RequestLoadQuestByID = function(id) requestedQuests[id] = (requestedQuests[id] or 0) + 1 end,
+    IsComplete = function(id) return id == 102 and questComplete end,
+    IsFailed = function() return false end,
+    GetQuestObjectives = function(id)
+        if id == 104 then return nil end
+        if id == 102 then return {} end
+        if id == 103 then return { { text = "Fill the progress bar", type = "progressbar", finished = false, numFulfilled = 0, numRequired = 1 } } end
+        return {
+            { text = "Collect some especially long named supplies from the camp: " .. questProgress .. "/5", type = "item", finished = questProgress == 5, numFulfilled = questProgress, numRequired = 5 },
+            { text = "Speak to the scout", type = "event", finished = true, numFulfilled = 1, numRequired = 1 },
+        }
+    end,
+}
+function GetQuestProgressBarPercent() return 42.5 end
+local openedQuest
+function QuestMapFrame_OpenToQuestDetails(id) openedQuest = id end
+first = persistedAddon.panels[1]
+settings = FunelQOLCharDB.layouts.Modern.panel1
+SetSetting(first, "content", "quests")
+assert(settings.questAuto and first.rows[1].data.questID == 101 and first.rows[1].data.valueText == "1 / 2")
+assert(first.rows[2].data.value == 2 and first.rows[2].data.maximum == 5 and first.rows[2].height > first.rows[3].height, "Objective text does not wrap")
+assert(first.rows[4].data.questID == 102 and first.rows[4].data.valueText == persistedAddon.panelText.questActive, "Zero objectives falsely reported ready")
+assert(first.rows[5].data.questID == 103 and first.rows[6].data.value == 42.5 and first.rows[6].data.maximum == 100)
+assert(not first.rows[7] or not first.rows[7].shown, "Duplicate world quest watch displayed twice")
+SetSetting(first, "questLimit", 1)
+assert(first.rows[3].shown and not first.rows[4].shown)
+SetSetting(first, "questLimit", 3)
+local questEvents
+for _, frame in ipairs(frames) do if frame.events.QUEST_WATCH_UPDATE then questEvents = frame end end
+assert(questEvents and questEvents.events.QUEST_WATCH_LIST_CHANGED and questEvents.events.QUEST_DATA_LOAD_RESULT)
+questProgress, questComplete = 5, true
+questEvents.scripts.OnEvent(questEvents, "QUEST_WATCH_UPDATE", 101)
+assert(first.rows[1].data.valueText == "2 / 2" and first.rows[2].data.value == 5)
+assert(first.rows[4].data.valueText == persistedAddon.panelText.questReady)
+combat = true; first.rows[1].scripts.OnClick(first.rows[1]); assert(openedQuest == nil)
+combat = false; first.rows[1].scripts.OnClick(first.rows[1]); assert(openedQuest == 101)
+LEM.callbacks.enter(); openedQuest = nil
+first.rows[1].scripts.OnClick(first.rows[1]); assert(openedQuest == nil)
+LEM.callbacks.exit()
+SetSetting(first, "questObjectives", false)
+assert(first.rows[1].data.questID == 101 and first.rows[2].data.questID == 102 and first.rows[3].data.questID == 103 and not first.rows[4].shown)
+SlashCmdList.FUNELQOL("content 1")
+editor = FindEditor()
+for _, frame in ipairs(frames) do if frame.parent == editor and frame.menu then dropdown = frame; break end end
+choices = {}; dropdown.menu(dropdown, root)
+choices["Quest 103"]()
+assert(not settings.questAuto and first.rows[1].data.questID == 103, "Editor did not switch to manual quest order")
+EditorButton("↓", -92).scripts.OnClick()
+assert(first.rows[1].data.questID == 102 and first.rows[2].data.questID == 103)
+watches, worldWatches = { 101 }, {}
+questEvents.scripts.OnEvent(questEvents, "QUEST_WATCH_LIST_CHANGED")
+assert(first.rows[1].data.name == persistedAddon.panelText.empty, "Untracked manual quests remain visible")
+watches = { 101, 102 }; worldWatches = { 103 }
+questEvents.scripts.OnEvent(questEvents, "QUEST_LOG_UPDATE")
+assert(first.rows[1].data.questID == 102 and first.rows[2].data.questID == 103, "Retained selection did not return after retracking")
+SetSetting(first, "questAuto", true)
+watches = { 104 }; worldWatches = {}
+questEvents.scripts.OnEvent(questEvents, "QUEST_DATA_LOAD_RESULT")
+questEvents.scripts.OnEvent(questEvents, "QUEST_LOG_UPDATE")
+assert(first.rows[1].data.valueText == persistedAddon.panelText.questLoading and requestedQuests[104] == 1, "Uncached quest floods load requests or reports completion")
+watches = {}; questEvents.scripts.OnEvent(questEvents, "QUEST_WATCH_LIST_CHANGED")
+assert(first.rows[1].data.name == persistedAddon.panelText.questEmpty)
+LEM.callbacks.create("QuestCopy", 5, "Modern")
+assert(FunelQOLCharDB.layouts.QuestCopy.panel1.content == "quests" and FunelQOLCharDB.layouts.QuestCopy.panel1.selections.quests ~= settings.selections.quests)
+print("PASS: tracked quests and world quests, deduplication, live counts/percentages, objective wrapping, ready/loading/empty states, automatic limits, manual selection/order/retracking, layout copy and combat/edit click guard.")
