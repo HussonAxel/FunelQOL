@@ -198,20 +198,20 @@ local function CreateRow(panel)
     return row
 end
 
-local function LayoutTrackerRow(row, entry, settings, width, pixel)
+local function LayoutTrackerRow(row, entry, settings, width, pixel, compact)
     local function P(value) return Snap(value, pixel) end
     row.value:Hide()
     row.bar:Hide()
     row.border:Hide()
     row.background:Hide()
-    row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (entry.isQuestHeader and 2 or 1), "")
+    row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (compact and (entry.isQuestHeader and 1 or 0) or entry.isQuestHeader and 2 or 1), compact and "OUTLINE" or "")
     row.label:SetWordWrap(true)
     if row.label.SetShadowOffset then row.label:SetShadowOffset(1, -1); row.label:SetShadowColor(0, 0, 0, 1) end
     local section, header = entry.trackerSection, entry.isQuestHeader
-    local left = P((section or not header and not entry.questObjective) and 12 or 36)
+    local left = P(compact and (entry.questObjective and 14 or 6) or (section or not header and not entry.questObjective) and 12 or 36)
     row.label:ClearAllPoints()
     row.label:SetPoint("TOPLEFT", left, -P(section and 6 or 2))
-    row.label:SetWidth(width - left - P(12))
+    row.label:SetWidth(width - left - P(compact and header and 28 or 12))
     if entry.delveID then
         row.label:SetWidth(width - left - P(42))
         row.value:ClearAllPoints()
@@ -224,20 +224,21 @@ local function LayoutTrackerRow(row, entry, settings, width, pixel)
         row.value:Show()
     end
     if section then
-        row.label:SetText((entry.sectionCollapsed and "+ " or "− ") .. entry.name)
+        row.label:SetText((entry.sectionCollapsed and "+ " or "− ") .. (compact and string.upper(entry.name) or entry.name))
         row.label:SetTextColor(1, 1, 1)
         row.background:SetColorTexture(0.3, 0.24, 0.06, 0.35)
-        row.background:Show()
+        row.background:SetShown(not compact)
         row.trackerLine = row.trackerLine or row:CreateTexture(nil, "ARTWORK")
         row.trackerLine:ClearAllPoints()
         row.trackerLine:SetPoint("BOTTOMLEFT", P(8), 0)
         row.trackerLine:SetPoint("BOTTOMRIGHT", -P(8), 0)
         row.trackerLine:SetHeight(P(1))
-        row.trackerLine:SetColorTexture(0.65, 0.5, 0.12, 0.8)
+        if compact then row.trackerLine:SetColorTexture(0.3, 0.3, 0.3, 0.8)
+        else row.trackerLine:SetColorTexture(0.65, 0.5, 0.12, 0.8) end
         DisableTextureSnapping(row.trackerLine)
         row.trackerLine:Show()
         row.icon:Hide()
-        return P(row.label:GetStringHeight() + 14)
+        return P(row.label:GetStringHeight() + (compact and 10 or 14))
     end
     local label = header and entry.questTitle or entry.name:gsub("^%s+", "")
     if entry.questObjective and not entry.directive then label = "- " .. label end
@@ -261,23 +262,24 @@ local function LayoutTrackerRow(row, entry, settings, width, pixel)
         end
         row.meta:ClearAllPoints()
         row.meta:SetPoint("TOPLEFT", left, -P(row.label:GetStringHeight() + 5))
-        row.meta:SetWidth(width - left - P(12))
-        row.meta:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "")
+        row.meta:SetWidth(width - left - P(compact and 28 or 12))
+        row.meta:SetFont(STANDARD_TEXT_FONT, compact and math.max(10, settings.fontSize - 1) or settings.fontSize, "")
         row.meta:SetTextColor(0.65, 0.7, 0.75)
         row.meta:SetText(metadata)
         row.meta:SetShown(metadata ~= "")
         if metadata ~= "" then height = height + row.meta:GetStringHeight() + 3 end
         row.icon:ClearAllPoints()
-        row.icon:SetPoint("TOPLEFT", P(10), -P(2))
-        row.icon:SetSize(P(20), P(20))
+        if compact then row.icon:SetPoint("TOPRIGHT", -P(6), -P(3))
+        else row.icon:SetPoint("TOPLEFT", P(10), -P(2)) end
+        row.icon:SetSize(P(compact and 14 or 20), P(compact and 14 or 20))
         row.icon:SetTexCoord(0, 1, 0, 1)
         row.icon:SetTexture(entry.questIcon or entry.icon)
         if entry.iconAtlas then row.icon:SetAtlas(entry.iconAtlas, false) end
         row.icon:Show()
         row.trackerAccent = row.trackerAccent or row:CreateTexture(nil, "ARTWORK")
         row.trackerAccent:ClearAllPoints()
-        row.trackerAccent:SetPoint("TOPLEFT", P(5), -P(2))
-        row.trackerAccent:SetPoint("BOTTOMLEFT", P(5), P(2))
+        row.trackerAccent:SetPoint("TOPLEFT", P(compact and 1 or 5), -P(2))
+        row.trackerAccent:SetPoint("BOTTOMLEFT", P(compact and 1 or 5), P(2))
         row.trackerAccent:SetWidth(P(2))
         local color = entry.borderColor or defaultBorderColor
         row.trackerAccent:SetColorTexture(color[1], color[2], color[3], 0.9)
@@ -308,14 +310,15 @@ local function Render(panel)
     local delves = settings.content == "delves"
     local tracker = questTracker or delves
     local compact = settings.content ~= "preview" and settings.content ~= "quests" and not delves
-    local headerHeight = Snap(tracker and 34 or compact and 24 or 26, pixel)
+    local compactSurface = compact or questTracker
+    local headerHeight = Snap(compactSurface and 24 or tracker and 34 or 26, pixel)
     -- Alpha >= 64 starts at texel 11 (Ayije) / 12 (Pixels), in the 2..29
     -- sampled cell. Leave room for each texture's exterior ink on both surfaces.
     local outerInk = style.centered and math.max(0, Snap(style.edgeSize / 2, pixel) - style.edgeSize * style.inkInset) or 0
     local gap = math.ceil((3 + outerInk * 2) / pixel - 0.001) * pixel
-    local contentTop = headerHeight + (tracker and 0 or gap)
+    local contentTop = headerHeight + (delves and 0 or gap)
     local rowHeight = Snap(compact and math.max(settings.rowHeight, settings.fontSize + 8) or settings.rowHeight, pixel)
-    local rowInset = compact and Snap(4, pixel) or 0
+    local rowInset = compactSurface and Snap(4, pixel) or 0
     local rowWidth = width - rowInset * 2
     panel:SetWidth(width)
     panel.header:SetHeight(headerHeight)
@@ -324,20 +327,20 @@ local function Render(panel)
     panel.viewport:ClearAllPoints()
     panel.viewport:SetPoint("TOPLEFT", -clipPadding, -contentTop + clipPadding - questInset)
     panel.viewport:SetPoint("TOPRIGHT", clipPadding, -contentTop + clipPadding - questInset)
-    SetBackdrop(panel.header, style, settings.opacity, pixel, nil, compact and compactBorderColor or nil)
-    if compact then
+    SetBackdrop(panel.header, style, settings.opacity, pixel, nil, compactSurface and compactBorderColor or nil)
+    if compactSurface then
         SetBackdrop(panel.body, style, settings.opacity, pixel, nil, compactBorderColor)
         panel.body:ClearAllPoints()
         panel.body:SetPoint("TOPLEFT", 0, -contentTop)
         panel.body:SetPoint("BOTTOMRIGHT", 0, 0)
     end
-    panel.body:SetShown(compact and not settings.collapsed)
+    panel.body:SetShown(compactSurface and not settings.collapsed)
     if tracker then SetBackdrop(panel, style, settings.opacity, pixel) end
-    if panel.background then panel.background:SetShown(tracker); panel.border:SetShown(tracker) end
-    panel.header.background:SetShown(not tracker)
-    panel.header.border:SetShown(not tracker)
+    if panel.background then panel.background:SetShown(delves); panel.border:SetShown(delves) end
+    panel.header.background:SetShown(not delves)
+    panel.header.border:SetShown(not delves)
     panel.title:ClearAllPoints()
-    panel.title:SetPoint(tracker and "LEFT" or "CENTER", tracker and Snap(12, pixel) or compact and 0 or -8, 0)
+    panel.title:SetPoint(delves and "LEFT" or "CENTER", delves and Snap(12, pixel) or compactSurface and 0 or -8, 0)
     local title = settings.title
     if settings.title == panel.definition.title then
         if tracker then title = delves and text.delves or text.trackerTitle
@@ -345,14 +348,14 @@ local function Render(panel)
             for _, kind in ipairs(addon.contentTypes) do if kind.value == settings.content then title = kind.text; break end end
         end
     end
-    panel.title:SetText(compact and string.upper(title) or title)
+    panel.title:SetText(compactSurface and string.upper(title) or title)
     panel.title:SetWidth(width - Snap(40, pixel))
-    panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (tracker and 3 or 0), tracker and "" or "OUTLINE")
+    panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (delves and 3 or 0), delves and "" or "OUTLINE")
     panel.title:SetTextColor(1, (tracker or compact) and 1 or 0.82, (tracker or compact) and 1 or 0)
     panel.editModeName = "FunelQOL · " .. settings.title
     panel.arrow:ClearAllPoints()
-    panel.arrow:SetPoint(compact and "LEFT" or "RIGHT", compact and Snap(5, pixel) or -9, 0)
-    panel.arrow:SetText(compact and ("|TInterface\\Buttons\\UI-ScrollBar-Scroll" .. (settings.collapsed and "Up" or "Down") .. "Button-Up:16:16:0:0|t") or settings.collapsed and "+" or "-")
+    panel.arrow:SetPoint(compactSurface and "LEFT" or "RIGHT", compactSurface and Snap(5, pixel) or -9, 0)
+    panel.arrow:SetText(compactSurface and ("|TInterface\\Buttons\\UI-ScrollBar-Scroll" .. (settings.collapsed and "Up" or "Down") .. "Button-Up:16:16:0:0|t") or settings.collapsed and "+" or "-")
     local data = delves and addon.GetDelveRows(settings) or tracker and addon.GetTrackerRows(settings) or addon.GetPanelRows(settings)
     local renderedHeight = 0
     local readable = tracker or settings.content == "quests" and settings.questReadable
@@ -397,7 +400,8 @@ local function Render(panel)
         row.background:SetShown(not readable and not compact)
         row.border:SetShown(not readable and not compact)
         if not row.separator then row.separator = row:CreateTexture(nil, "BACKGROUND") end
-        row.separator:SetShown(compact and index < #data)
+        local nextEntry = data[index + 1]
+        row.separator:SetShown(compact and nextEntry ~= nil or questTracker and nextEntry and not entry.trackerSection and (nextEntry.isQuestHeader or nextEntry.trackerSection) or false)
         row.separator:ClearAllPoints()
         row.separator:SetPoint("BOTTOMLEFT", 0, 0)
         row.separator:SetPoint("BOTTOMRIGHT", 0, 0)
@@ -455,11 +459,11 @@ local function Render(panel)
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
         if tracker then
             if entry.isQuestHeader then
-                renderedHeight = renderedHeight + Snap(8, pixel)
+                renderedHeight = renderedHeight + Snap(questTracker and 4 or 8, pixel)
                 row:ClearAllPoints()
-                row:SetPoint("TOPLEFT", clipPadding, -clipPadding - renderedHeight)
+                row:SetPoint("TOPLEFT", clipPadding + rowInset, -clipPadding - renderedHeight)
             end
-            actualHeight = LayoutTrackerRow(row, entry, settings, width, pixel)
+            actualHeight = LayoutTrackerRow(row, entry, settings, rowWidth, pixel, questTracker)
         elseif readable and (entry.isQuestHeader or entry.questObjective) then
             local isHeader = entry.isQuestHeader
             local fontSize = settings.fontSize + (isHeader and 2 or 1)
@@ -511,7 +515,7 @@ local function Render(panel)
             row.icon:ClearAllPoints()
             row.icon:SetPoint("TOPLEFT", Snap(4, pixel), -Snap((actualHeight - Snap(16, pixel)) / 2, pixel))
         end
-        renderedHeight = renderedHeight + actualHeight + (compact and 0 or readable and Snap(2, pixel) or gap)
+        renderedHeight = renderedHeight + actualHeight + (compactSurface and 0 or readable and Snap(2, pixel) or gap)
         row:Show()
     end
     FinishGroup()

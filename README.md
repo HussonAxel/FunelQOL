@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.7.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.7.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -57,7 +57,7 @@ Currency, money, skill, specialization, and talent events refresh the displayed 
 
 ### Sectioned objective tracker
 
-Panels using **Tracked quests** now default to a continuous dark surface with a single outer border, inspired by the supplied tracker reference. It separates **Campaign**, **Quests**, **World Quests**, and **Events**; empty sections disappear. Click a section heading to fold it independently. Fold states are saved per panel and Blizzard layout. Headings do not fold while Edit Mode is active.
+Panels using **Tracked quests** now default to a continuous dark body with a single outer border and a separate compact header, matching the currency tracker shell. It separates **Campaign**, **Quests**, **World Quests**, and **Events**; empty sections disappear. Click a section heading to fold it independently. Fold states are saved per panel and Blizzard layout. Headings do not fold while Edit Mode is active.
 
 Quest titles show an icon and use yellow for active quests or green for ready quests. The journal header or task map provides a blue zone line when available. Objectives remain white/green, with indented counters and thin progress bars; hand-in/waypoint instructions do not get an unfinished-objective dash. Relevant category badges and nonzero progress remain visible with quest details enabled. Category colors appear as a slim accent beside the quest title in this presentation.
 
@@ -168,3 +168,5 @@ Delve references: [Blizzard delve map provider](https://github.com/Gethe/wow-ui-
 Currencies, professions, selected talents and custom menus now use the supplied compact reference: a separate centered white header, a collapse arrow on the left, one dark body with thin row separators, uppercase labels and right-aligned values. Icons sit immediately before values; money uses its inline coins without a duplicate icon. Currency label/value colors use Blizzard's currency quality; professions are green, talents violet and custom text white. Currency quality comes from [Blizzard's CurrencyInfo structure](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/CurrencyInfoDocumentation.lua).
 
 Default panel titles follow the selected content; personalized titles are retained. Width, font size, row height, scale, opacity and border theme remain configurable. Compact rows omit progress fills. Quest and delve trackers retain their detailed section presentation. The changes apply after `/reload` to existing panels as well as new ones.
+
+The sectioned quest tracker also uses the compact shell: centered white uppercase panel title, left collapse arrow, right-side quest/event icons and neutral section separators. Quest titles keep their readable capitalization and completion/category colors; multiline objectives, zones, badges, timers and progress remain visible. Category accents retain their blue/gold/orange meaning. Quest groups share the body border and have thin separators. The detailed delve presentation and optional legacy quest presentations remain available.

@@ -690,19 +690,19 @@ for _, row in ipairs(first.rows) do
         assert(not row.border.shown, "Continuous tracker still draws per-row borders")
         if row.data.trackerSection then
             sectionKeys[row.data.trackerSection] = true
-            assert(row.background.shown and row.trackerLine.shown)
+            assert(not row.background.shown and row.trackerLine.shown)
         elseif row.data.isQuestHeader then
             assert(not row.background.shown and row.icon.shown and row.meta.shown)
             assert(row.meta.text:find("|cff4da6e6", 1, true), "Zone lacks its blue text hierarchy")
-            assert(row.label.point[2] == row.meta.point[2] and row.label.point[2] >= 35)
+            assert(row.label.point[2] == row.meta.point[2] and row.label.point[2] >= 5)
             if row.data.questID then questCount = questCount + 1 else eventCount = eventCount + 1 end
         end
     end
 end
 assert(sectionKeys.campaign and sectionKeys.quests and sectionKeys.world and sectionKeys.events)
 assert(questCount == 14 and eventCount == 2, "Quest lost or inactive/duplicate/locked event shown")
-assert(first.background.shown and first.border.shown and not first.header.border.shown)
-assert(first.title.text == persistedAddon.panelText.trackerTitle)
+assert(not first.background.shown and first.body.shown and first.header.border.shown)
+assert(first.title.text == string.upper(persistedAddon.panelText.trackerTitle))
 local ready = FindTrackerRow(function(data) return data.questID == 202 and data.isQuestHeader end)
 assert(ready.label.textColor[2] == 1 and ready.label.textColor[1] < 0.5)
 local handInRow = FindTrackerRow(function(data) return data.name:find("Deliver the Plowhead", 1, true) end)
@@ -730,7 +730,7 @@ assert(first.scrollMaximum == 0 and not first.scrollHint.shown, "Folded sections
 settings.questSections = {}
 for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
     SetSetting(first, "style", style)
-    assert(first.border.shown and not first.questGroups[1].shown)
+    assert(first.body.border.shown and not first.questGroups[1].shown)
 end
 SetSetting(first, "questEvents", false)
 assert(not FindTrackerRow(function(data) return data.trackerSection == "events" end))
@@ -975,3 +975,61 @@ SetSetting(first, "content", "preview")
 assert(not first.body.shown and first.rows[1].border.shown and not first.rows[1].separator.shown)
 assert(first.rows[1].icon.point[1] == "TOPLEFT")
 print("PASS: compact data trackers, shared body and separators, automatic/custom headers, rarity colors, icons beside values, coin reuse, collapse and renderer switching across themes, widths, fonts and scales.")
+
+-- Quest tracking shares the compact shell while retaining multiline content.
+settings.title = first.definition.title
+SetSetting(first, "questReadable", true)
+SetSetting(first, "questTracker", true)
+SetSetting(first, "questAuto", true)
+SetSetting(first, "questAll", true)
+SetSetting(first, "content", "quests")
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 260, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, scale in ipairs({ 0.7, 1.5 }) do
+                SetSetting(first, "scale", scale)
+                assert(first.body.shown and first.header.border.shown and not first.background.shown)
+                assert(first.title.point[1] == "CENTER" and first.arrow.point[1] == "LEFT")
+                assert(first.title.text == string.upper(persistedAddon.panelText.trackerTitle))
+                local headers, objectives, separators = 0, 0, 0
+                for _, row in ipairs(first.rows) do
+                    if row.shown then
+                        assert(not row.border.shown and not row.background.shown)
+                        if row.data.isQuestHeader then
+                            headers = headers + 1
+                            assert(row.icon.point[1] == "TOPRIGHT" and row.meta.shown)
+                            local iconLeft = row.width + row.icon.point[2] - row.icon.width
+                            assert(row.label.point[2] + row.label.width <= iconLeft, "Quest title overlaps its right-side icon")
+                            assert(row.meta.point[2] + row.meta.width <= iconLeft, "Quest details overlap icon column")
+                        elseif row.data.questObjective then
+                            objectives = objectives + 1
+                            assert(row.label.wordWrap and row.label.point[2] > 6)
+                            assert(row.height >= row.label:GetStringHeight(), "Compact quest objective is clipped")
+                        elseif row.data.trackerSection then
+                            assert(row.trackerLine.shown and row.label.text == (row.data.sectionCollapsed and "+ " or "− ") .. string.upper(row.data.name))
+                        end
+                        if row.separator.shown then separators = separators + 1 end
+                    end
+                end
+                assert(headers == 14 and objectives > 0 and separators > 0, "Compact quest tracker loses watched content")
+                assert(first.scrollMaximum > 0, "Long compact quest list loses scrolling")
+            end
+        end
+    end
+end
+SetSetting(first, "collapsed", true)
+assert(not first.body.shown and not first.viewport.shown and first.header.border.shown)
+SetSetting(first, "collapsed", false)
+local section = FindTrackerRow(function(data) return data.trackerSection == "campaign" end)
+section.scripts.OnClick(section)
+assert(not FindTrackerRow(function(data) return data.questID == 201 end))
+section.scripts.OnClick(section)
+assert(FindTrackerRow(function(data) return data.questID == 201 end))
+SetSetting(first, "questTracker", false)
+assert(not first.body.shown and first.questGroups[1].shown)
+SetSetting(first, "questTracker", true)
+assert(first.body.shown and not first.questGroups[1].shown)
+print("PASS: compact quest shell, centered header, value-side quest icons, wrapped objectives and metadata, full watched list, section separators, scrolling, collapse/folding and legacy presentation across themes, widths, fonts and scales.")
