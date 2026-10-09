@@ -134,6 +134,7 @@ local function CreateRow(panel)
     row.value = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.value:SetPoint("RIGHT", -6, 0)
     row.value:SetJustifyH("RIGHT")
+    row.value:SetWordWrap(false)
     row.meta = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.meta:SetJustifyH("LEFT")
     row.meta:SetWordWrap(true)
@@ -259,10 +260,27 @@ local function Render(panel)
         row.icon:SetShown(entry.icon ~= nil)
         row.label:ClearAllPoints()
         row.label:SetPoint("LEFT", Snap(entry.icon and 24 or 6, pixel), 0)
-        row.value:SetText(entry.valueText or "")
-        local valueWidth = math.min(settings.width * 0.48, row.value:GetStringWidth())
+        local labelStart = Snap(entry.icon and 24 or 6, pixel)
+        local valueInset, valueGap = Snap(8, pixel), Snap(8, pixel)
+        row.value:ClearAllPoints()
+        row.value:SetPoint("RIGHT", -valueInset, 0)
+        row.value:SetText(entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
+        local availableWidth = width - labelStart - valueInset - valueGap - 30
+        local naturalWidth = row.value:GetUnboundedStringWidth()
+        if entry.moneyAmount then
+            -- Give all denominations room before shortening the label. On narrow
+            -- panels, reduce just the money font until the full amount fits.
+            local moneyFontSize = settings.fontSize
+            while naturalWidth > availableWidth and moneyFontSize > 8 do
+                moneyFontSize = moneyFontSize - 1
+                row.value:SetFont(STANDARD_TEXT_FONT, moneyFontSize, "OUTLINE")
+                row.value:SetText(addon.GetMoneyText(entry.moneyAmount, moneyFontSize))
+                naturalWidth = row.value:GetUnboundedStringWidth()
+            end
+        end
+        local valueWidth = math.ceil(math.min(entry.moneyAmount and availableWidth or width * 0.48, naturalWidth) / pixel) * pixel
         row.value:SetWidth(valueWidth)
-        row.label:SetWidth(math.max(30, settings.width - valueWidth - (entry.icon and 36 or 18)))
+        row.label:SetWidth(math.max(30, width - labelStart - valueInset - valueGap - valueWidth))
         row.label:SetWordWrap(entry.wrap or false)
         row.label:SetText(entry.name)
         local labelColor = entry.labelColor or { 1, 0.82, 0 }

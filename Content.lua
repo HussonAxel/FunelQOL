@@ -91,12 +91,23 @@ function addon.GetContentSelection(settings, catalog)
 end
 
 local function Currency(id)
-    if id == -1 then return { name = text.money, icon = 133784, valueText = C_CurrencyInfo.GetCoinTextureString(GetMoney()) } end
+    if id == -1 then
+        local amount = GetMoney()
+        return { name = text.money, icon = 133784, moneyAmount = amount, valueText = C_CurrencyInfo.GetCoinTextureString(amount) }
+    end
     local info = C_CurrencyInfo.GetCurrencyInfo(id)
     if not info or not info.name or info.name == "" then return nil end
     local maximum = not info.useTotalEarnedForMaxQty and info.maxQuantity or 0
     return { name = info.name, icon = info.iconFileID, value = info.quantity, maximum = maximum,
         currencyID = id, valueText = tostring(info.quantity) .. (maximum > 0 and " / " .. maximum or ""), description = info.description }
+end
+
+function addon.GetMoneyText(amount, fontSize)
+    -- Blizzard's coin markup includes horizontal offsets. Use explicit square
+    -- dimensions without offsets so the drawn coins stay inside measured bounds.
+    return (C_CurrencyInfo.GetCoinTextureString(amount, fontSize):gsub("|T([^:|]+):[^|]*|t", function(texture)
+        return "|T" .. texture .. ":" .. fontSize .. ":" .. fontSize .. ":0:0|t"
+    end))
 end
 
 function addon.GetPanelRows(settings)

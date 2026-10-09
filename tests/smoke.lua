@@ -38,6 +38,7 @@ function methods:SetTexture(texture) self.texture = texture; return true end
 function methods:SetText(text) self.text = text end
 function methods:SetFont(font, size) self.font, self.fontSize = font, size end
 function methods:GetStringWidth() return #(self.text or "") * 6 end
+function methods:GetUnboundedStringWidth() return #(self.text or "") * 6 end
 function methods:GetStringHeight() return math.ceil(#(self.text or "") * 6 / math.max(1, self.width or 200)) * (self.fontSize or 11) end
 function methods:SetBackdrop(backdrop) self.backdrop = backdrop end
 function methods:SetStatusBarTexture(texture) self.texture = texture; self.barColor = nil end
@@ -48,6 +49,7 @@ function methods:SetValue(value) self.value = value end
 for _, name in ipairs({ "SetAllPoints", "SetClampedToScreen", "SetFrameStrata", "SetBackdropColor", "SetBackdropBorderColor", "SetTexCoord", "SetJustifyH", "SetWordWrap", "SetTextColor", "EnableMouse", "SetColorTexture" }) do
     methods[name] = function() end
 end
+function methods:SetWordWrap(enabled) self.wordWrap = enabled end
 function CreateFrame(kind, name, parent)
     local frame = setmetatable({ kind = kind, name = name, parent = parent, scripts = {}, events = {}, shown = true }, { __index = methods })
     frames[#frames + 1] = frame
@@ -589,3 +591,56 @@ SetSetting(first, "questReadable", true)
 SetSetting(first, "content", "preview")
 assert(not first.questGroups[1].shown and first.rows[1].border.shown and not first.rows[1].meta.shown)
 print("PASS: one group per quest, full-width larger titles, white/green objective hierarchy, compact metadata, retained timer values, thin progress bars, all border styles and presentation switching.")
+
+-- Model inline texture widths instead of counting texture markup as letters.
+function methods:GetUnboundedStringWidth()
+    local textureWidth = 0
+    local plain = (self.text or ""):gsub("|T([^|]+)|t", function(tag)
+        local height, width = tag:match("^[^:]+:(%d+):(%d+)")
+        textureWidth = textureWidth + (tonumber(width) ~= 0 and tonumber(width) or self.fontSize or 14)
+        return ""
+    end)
+    return #plain * (self.fontSize or 11) * 0.55 + textureWidth
+end
+function methods:GetStringWidth()
+    return math.min(self.width or math.huge, self:GetUnboundedStringWidth())
+end
+C_CurrencyInfo.GetCoinTextureString = function(amount, height)
+    local parts = {}
+    for _, denomination in ipairs({ {10000, "Gold"}, {100, "Silver"}, {1, "Copper"} }) do
+        local count = math.floor(amount / denomination[1])
+        amount = amount % denomination[1]
+        if count > 0 or denomination[1] == 1 then
+            parts[#parts + 1] = count .. "|TInterface\\MoneyFrame\\UI-" .. denomination[2] .. "Icon:" .. (height or 14) .. ":" .. (height or 14) .. ":2:0|t"
+        end
+    end
+    return table.concat(parts, " ")
+end
+SetSetting(first, "content", "currencies")
+settings = FunelQOLCharDB.layouts[LEM.active].panel1
+settings.selections.currencies = { -1, 3, 0, 0, 0, 0, 0, 0 }
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 260, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 11, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, amount in ipairs({ 0, 65175051, 99999999999, 10000, 51 }) do
+                money = amount
+                persistedAddon.RefreshPanels()
+                local row = first.rows[1]
+                local naturalWidth = row.value:GetUnboundedStringWidth()
+                assert(row.value.width >= naturalWidth, "Money value is constrained below its inline texture width")
+                assert(row.value.wordWrap == false, "Money can wrap into the border")
+                assert(row.value.point[2] <= -8, "Money needs an inset for the final coin")
+                assert(row.label.width + naturalWidth + 40 <= first.width + 1, "Money overlaps its label")
+                for tag in row.value.text:gmatch("|T([^|]+)|t") do
+                    local height, size, x, y = tag:match("^[^:]+:(%d+):(%d+):(-?%d+):(-?%d+)$")
+                    assert(tonumber(x) == 0 and tonumber(y) == 0, "Inline coin protrudes outside its measured bounds")
+                    assert(tonumber(height) == row.value.fontSize and tonumber(size) == row.value.fontSize, "Coin size does not match the value font")
+                end
+            end
+        end
+    end
+end
+print("PASS: money remains single-line and within its reserved bounds, zero-offset coins, all border styles, panel widths, font sizes and changing denominations.")

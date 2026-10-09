@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.4.3 provides two configurable panels with live currencies, professions, selected talents, quest objectives, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.4.4 provides two configurable panels with live currencies, professions, selected talents, quest objectives, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -41,6 +41,8 @@ Positions and settings are stored per character and per Blizzard layout name in 
 5. Close the editor and exit Edit Mode. Changes apply immediately; `/reload` saves them to disk.
 
 Each content type keeps its own selection, so switching to Preview does not erase currencies or custom rows. The first use of a live content type selects up to three available entries. An empty selection shows a configuration hint.
+
+Money uses coins sized to the value font, with no texture offsets and an inset from the right border. The full amount stays on one line; on narrow panels, its font shrinks independently to leave room for the label.
 
 - **Currencies:** current wallet quantity, optional wallet-cap bar, and gold. Seasonal total-earned caps are not displayed as wallet-cap bars. The dropdown reflects the visible Blizzard currency list: expand categories in the character currency tab and reopen the editor to expose more entries. You can also enter a numeric currency ID at the bottom of the editor. Selected currencies remain readable when their category is collapsed.
 - **Professions:** learned professions, including secondary professions, with their reported skill rank and maximum. The expansion skill-line name is used when available.
