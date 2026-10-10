@@ -256,6 +256,7 @@ local function CreateRow(panel)
             GameTooltip:SetText(data.questTitle, 1, 0.82, 0)
             if data.questDetails and data.questDetails ~= "" then GameTooltip:AddLine(data.questDetails, 0.6, 0.8, 1, true) end
             if data.questProgressText then GameTooltip:AddLine(text.questProgress .. ": " .. data.questProgressText, 1, 1, 1) end
+            if data.questXPText then GameTooltip:AddLine(data.questXPText, 0.3, 1, 0.3, true) end
             for _, objective in ipairs(data.objectives or {}) do
                 GameTooltip:AddLine(objective.text, objective.finished and 0.3 or 1, 1, objective.finished and 0.3 or 1, true)
             end

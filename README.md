@@ -272,3 +272,9 @@ Version 0.14.4 fixes renown right-click on Retail 12.1: the native View Renown b
 The **Delve quests** tracker also includes Abundance (Abundant Offerings), ten delves or world quests (Hope in the Darkest Corners), Saltheril's Soiree (Fortify the Runestones), and Legends of the Haranir. One row per activity follows the character's active variant, objective counters, ready-to-turn-in state and completion. Hover for objectives, pickup hints and the route's recommendation to save these turn-ins for the final leveling phase. Existing Delver's Calls and the Hide turned-in quests setting remain available.
 
 Haranir tracking distinguishes introductory and repeat master quests; old relic unlocks do not count as a completed weekly. FollowTheArrow is a reference, not a required dependency. Quest facts and sources are documented in [docs/alt-leveling-quests.md](docs/alt-leveling-quests.md).
+
+## Quest XP totals
+
+Quest and Delve quests panels show **Ready quest XP** and **Quest log XP** for all accepted, visible quests in the journal, including unwatched quests. Failed quests are excluded. Hover for counts, XP remaining to the next level and the effective included bonus percentage when the client also supplies base XP. Individual tracked quest tooltips show their XP reward.
+
+The calculation sums Blizzard's current total reward directly; it does not multiply Warband, War Mode or temporary buffs again. Rewards refresh after level, aura, equipment and War Mode changes. Unloaded rewards produce an explicitly partial subtotal. Values describe the current level and modifiers, rather than projecting several level-ups whose scaled rewards may change. Rested XP is not added; the summary is hidden at the XP cap and marks disabled XP gain. See [docs/quest-xp-calculation.md](docs/quest-xp-calculation.md) for the API sources and in-game validation limits.

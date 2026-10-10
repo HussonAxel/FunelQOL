@@ -16,6 +16,7 @@ Content.lua
 CurrencyCatalog.lua
 CurrencyEditor.lua
 QuestContent.lua
+QuestXP.lua
 TrackerContent.lua
 DelveRatings.lua
 DelveQuestContent.lua

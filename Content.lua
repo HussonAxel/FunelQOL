@@ -163,11 +163,11 @@ end
 
 function addon.GetPanelRows(settings)
     if settings.content == "raidsets" then return addon.GetRaidSetRows(settings) end
-    if settings.content == "delvequests" then return addon.GetDelveQuestRows(settings) end
+    if settings.content == "delvequests" then return addon.WithQuestXPSummary(addon.GetDelveQuestRows(settings), settings) end
     if settings.content == "vault" then return addon.GetVaultRows(settings) end
     if settings.content == "delves" then return addon.GetDelveRows(settings) end
     if settings.content == "preview" then return addon.GetPreviewRows(settings.rowCount) end
-    if settings.content == "quests" then return addon.GetQuestRows(settings) end
+    if settings.content == "quests" then return addon.WithQuestXPSummary(addon.GetQuestRows(settings), settings) end
     local rows = {}
     if settings.content == "custom" then
         if type(settings.customRows) ~= "table" then settings.customRows = {} end

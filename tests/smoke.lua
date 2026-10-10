@@ -85,7 +85,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -166,7 +166,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -340,7 +340,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -1942,3 +1942,27 @@ assert(not persistedAddon.OpenRenownSummary(1))
 ShowUIPanel,C_AddOns=oldShowPanel,oldAddOns
 EJ_ContentTab_Select=nil
 print("PASS: Retail Adventure Guide Journeys renown routing, native View Renown path, load-on-demand, exact faction/tab, repeat clicks, combat guard, modern loader fallback and unavailable UI handling.")
+
+-- XP summary integrates into compact delve rows and sectioned quest panels.
+do
+    UnitXP = function() return 1000 end
+    UnitXPMax = function() return 10000 end
+    GetQuestLogRewardXP = function(id) return id == 93416 and 7000 or 2000, id == 93416 and 5000 or 2000 end
+    C_QuestLog.GetNumQuestLogEntries = function() return 2 end
+    C_QuestLog.GetQuestIDForLogIndex = function(index) return index == 1 and 93416 or 999999 end
+    C_QuestLog.GetInfo = function(index) return {questID = index == 1 and 93416 or 999999, title = "XP quest", level = 84} end
+    C_QuestLog.IsComplete = function(id) return id == 93416 end
+    C_QuestLog.IsFailed = function() return false end
+    C_QuestLog.IsOnQuest = function(id) return id == 93416 or id == 999999 end
+    for _, content in ipairs({"delvequests", "quests"}) do
+        SetSetting(first, "content", content)
+        assert(first.rows[1].data.questXPSummary and first.rows[2].data.questXPSummary)
+        assert(first.rows[1].data.name:find("XP", 1, true))
+        first.rows[1].scripts.OnEnter(first.rows[1])
+        first.rows[1].scripts.OnClick(first.rows[1])
+        if content == "delvequests" then assert(first.rows[1].value.text == "7000")
+        else assert(first.rows[1].label.text:find("7000", 1, true)) end
+    end
+    assert(persistedAddon.GetQuestXPSummary().total == 9000, "Unwatched quest is excluded from journal XP")
+    print("PASS: XP summary rendered in compact delve and sectioned quest trackers, hover/click and unwatched journal totals.")
+end

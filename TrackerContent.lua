@@ -85,5 +85,5 @@ function addon.GetTrackerRows(settings)
         end
     end
     if #rows == 0 then rows[1] = quests[1] end
-    return rows
+    return addon.WithQuestXPSummary(rows, settings)
 end
