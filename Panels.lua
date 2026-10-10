@@ -355,7 +355,7 @@ local function LayoutTrackerRow(row, entry, settings, width, pixel, compact)
     if not header and counter ~= "" and (entry.progressBar or (counter:find("%d%s*/%s*%d")
         and not label:gsub("%s+", ""):find(counter:gsub("%s+", ""), 1, true))) then label = label .. " · " .. counter end
     row.label:SetText(label)
-    local height = row.label:GetStringHeight() + 5
+    local height = row.label:GetStringHeight() + (compact and entry.questObjective and 7 or 5)
     if header then
         local metadata = entry.questZone and "|cff4da6e6" .. entry.questZone .. "|r" or ""
         if entry.delveID then
@@ -614,7 +614,7 @@ local function Render(panel)
         if compact and (entry.iconSize or renown) then actualHeight = math.max(actualHeight, compactIconSize + Snap(4, pixel)) end
         if tracker then
             if entry.isQuestHeader then
-                renderedHeight = renderedHeight + Snap(questTracker and 4 or 8, pixel)
+                renderedHeight = renderedHeight + Snap(questTracker and 10 or 8, pixel)
                 row:ClearAllPoints()
                 row:SetPoint("TOPLEFT", clipPadding + rowInset, -clipPadding - renderedHeight)
             end
