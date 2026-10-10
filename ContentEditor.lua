@@ -24,6 +24,7 @@ local function Edit(parent, x, y, width, changed)
 end
 
 function addon.CloseContentEditor()
+    if addon.CloseRaidCollectionEditor then addon.CloseRaidCollectionEditor() end
     if editor then editor:Hide() end
     if addon.CloseCurrencyEditor then addon.CloseCurrencyEditor() end
 end
@@ -31,6 +32,7 @@ end
 function addon.OpenContentEditor(settings, refresh)
     addon.CloseContentEditor()
     if settings.content == "currencies" then return addon.OpenCurrencyEditor(settings, refresh) end
+    if settings.content == "raidcollection" then return addon.OpenRaidCollectionEditor(settings, refresh) end
     local cache = editors[settings]
     if cache and cache[settings.content] then
         editor = cache[settings.content]

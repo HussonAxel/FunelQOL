@@ -103,9 +103,9 @@ function addon.GetRaidSetCatalog()
     return rows
 end
 
-function addon.GetRaidSetRows(settings)
+function addon.GetRaidSetRows(settings, raidContext)
     local season = CurrentSeason()
-    local instance = Instance(settings)
+    local instance = raidContext or Instance(settings)
     local classID = UnitClass and select(3, UnitClass("player"))
     local api, collection = C_TransmogSets, C_TransmogCollection
     if not classID or (not instance and (not season or not season.bases[classID])) or not api or not api.GetSetInfo or not api.GetSourcesForSlot or not collection or not collection.GetSourceInfo or not collection.GetAllAppearanceSources then
@@ -155,6 +155,7 @@ function addon.GetRaidSetRows(settings)
             if instance then lines[#lines + 1] = (fr and "Difficulté actuelle : " or "Current difficulty: ") .. (instance.difficultyName or "?") end
             local collected, total, unknown = 0, 0, not info
             local previewSources, actionModes, actionStatus, actionPending = {}, {}, nil, false
+            local pieces = {}
             for _, slot in ipairs(slots) do
                 local sources = api.GetSourcesForSlot(setID, slot[1])
                 -- Robes use a separate inventory type but occupy the same chest slot.
@@ -200,6 +201,8 @@ function addon.GetRaidSetRows(settings)
                     if primary then
                         color = addon.raidAppearanceModes[primary].color
                     end
+                    pieces[#pieces + 1] = { name = name, itemID = itemID, state = state, sources = sources,
+                        slot = slot[1], routes = routes, setID = setID, actionStatus = actionStatus }
                     lines[#lines + 1] = " "
                     -- Collected pieces stay compact; actionable missing pieces
                     -- are followed by the actual owned items on separate lines.
@@ -223,7 +226,7 @@ function addon.GetRaidSetRows(settings)
             for _, mode in ipairs({ "upgrade", "catalyst", "both" }) do if actionModes[mode] then valueText = valueText .. " " .. addon.GetRaidActionIcon(mode) end end
             rows[#rows + 1] = { name = (current and "» " or "") .. entry.name, raidSetID = setID, raidSetCurrent = current, value = collected, maximum = total,
                 gaugeMaximum = unknown and 0 or total,
-                valueText = valueText, raidCollectionText = collectionText, fitValue = true, raidActionModes = actionModes, raidPreviewSources = previewSources,
+                valueText = valueText, raidCollectionText = collectionText, fitValue = true, raidActionModes = actionModes, raidPreviewSources = previewSources, raidSetPieces = pieces,
                 compactColor = complete and { .3, 1, .3 } or colors[difficulty or 1],
                 icon = complete and "Interface\\RaidFrame\\ReadyCheck-Ready" or 132143, tooltipLines = lines }
         end

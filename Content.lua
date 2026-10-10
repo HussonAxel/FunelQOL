@@ -21,6 +21,7 @@ addon.contentTypes = {
     { text = fr and "Chambre forte" or "Great Vault", value = "vault" },
     { text = fr and "Renoms · Midnight" or "Renown · Midnight", value = "renown" },
     { text = fr and "Sets de raid" or "Raid sets", value = "raidsets" },
+    { text = fr and "Collection de raid" or "Raid collection", value = "raidcollection" },
     { text = fr and "Menu personnalisé" or "Custom menu", value = "custom" },
 }
 
@@ -162,6 +163,7 @@ function addon.GetMoneyText(amount, fontSize)
 end
 
 function addon.GetPanelRows(settings)
+    if settings.content == "raidcollection" then return addon.GetRaidCollectionRows(settings) end
     if settings.content == "raidsets" then return addon.GetRaidSetRows(settings) end
     if settings.content == "delvequests" then return addon.WithQuestXPSummary(addon.GetDelveQuestRows(settings), settings) end
     if settings.content == "vault" then return addon.GetVaultRows(settings) end

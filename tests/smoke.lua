@@ -85,7 +85,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -166,7 +166,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -340,7 +340,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -1965,4 +1965,47 @@ do
     end
     assert(persistedAddon.GetQuestXPSummary().total == 9000, "Unwatched quest is excluded from journal XP")
     print("PASS: XP summary rendered in compact delve and sectioned quest trackers, hover/click and unwatched journal totals.")
+end
+
+-- Raid collection integrates into the compact renderer, scrolling and editor.
+do
+    EncounterJournal = nil
+    GetInstanceInfo = function() return "Collection Raid", "raid", 15, "Heroic", nil, nil, nil, 555 end
+    persistedAddon.GetRaidSetRows = function() return {{raidSetCurrent=true, raidPreviewSources={900}, raidSetPieces={{name="Head: Missing tier",itemID=9,state="missing",routes={}}}}} end
+    EJ_GetSelectedInstance = function() return 42 end
+    EJ_GetDifficulty = function() return 14 end
+    EJ_GetLootFilter = function() return 0, 0 end
+    EJ_SelectInstance = function() end
+    EJ_SetDifficulty = function() end
+    EJ_SetLootFilter = function() end
+    EJ_IsValidInstanceDifficulty = function() return true end
+    EJ_GetNumLoot = function() return 30 end
+    EJ_GetEncounterInfo = function() return "Collection boss" end
+    C_EncounterJournal = {
+        GetInstanceForGameMap=function() return 55 end,
+        GetLootInfoByIndex=function(index) return {itemID=index+10,encounterID=11,name="Missing mount "..index,icon=132143,link="item:"..(index+10)} end,
+    }
+    C_Item.IsItemDataCachedByID = function() return true end
+    C_MountJournal = {GetMountFromItem=function(id) return id end,GetMountInfoByID=function() return nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,false end}
+    local itemTooltip
+    GameTooltip.SetHyperlink = function(_,link) itemTooltip=link end
+    settings = FunelQOLCharDB.layouts[LEM.active].panel1
+    settings.title = first.definition.title
+    SetSetting(first,"questHeight",150)
+    SetSetting(first,"content","raidcollection")
+    assert(first.title.text=="COLLECTION RAID" and first.body.shown and first.scrollMaximum>0)
+    local boss, reward
+    for _,row in ipairs(first.rows) do
+        if row.shown and row.data.raidCollectionBossKey=="boss:11" then boss=row end
+        if row.shown and row.data.raidCollectionLink then reward=reward or row end
+    end
+    assert(boss and reward)
+    reward.scripts.OnEnter(reward)
+    assert(itemTooltip==reward.data.raidCollectionLink)
+    boss.scripts.OnClick(boss)
+    assert(settings.raidCollection.collapsed["boss:11"])
+    for _,row in ipairs(first.rows) do assert(not(row.shown and row.data.raidCollectionLink)) end
+    persistedAddon.ConfigurePanel(1)
+    persistedAddon.CloseContentEditor()
+    print("PASS: raid collection content menu, contextual title, compact rows, height/scroll, native reward tooltip, boss fold and category editor.")
 end

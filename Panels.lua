@@ -260,6 +260,9 @@ local function CreateRow(panel)
             for _, objective in ipairs(data.objectives or {}) do
                 GameTooltip:AddLine(objective.text, objective.finished and 0.3 or 1, 1, objective.finished and 0.3 or 1, true)
             end
+        elseif data.raidCollectionLink then
+            GameTooltip:SetHyperlink(data.raidCollectionLink)
+            for _, line in ipairs(data.tooltipLines or {}) do GameTooltip:AddLine(line, 1, 1, 1, true) end
         elseif data.currencyID then
             GameTooltip:SetCurrencyByID(data.currencyID)
         elseif data.spellID then
@@ -282,7 +285,12 @@ local function CreateRow(panel)
             if self.data.factionID then addon.OpenRenownSummary(self.data.factionID) end
             return
         end
-        if self.data.raidSetID then
+        if self.data.raidCollectionBossKey then
+            addon.ToggleRaidCollectionBoss(Settings(panel.definition.id), self.data.raidCollectionBossKey)
+            addon.RefreshPanels()
+        elseif self.data.raidCollectionKind == "set" then
+            addon.PreviewRaidSet(self.data)
+        elseif self.data.raidSetID then
             addon.PreviewRaidSet(self.data)
         elseif self.data.trackerSection then
             local settings = Settings(panel.definition.id)
@@ -461,6 +469,7 @@ local function Render(panel)
         elseif compact then
             for _, kind in ipairs(addon.contentTypes) do if kind.value == settings.content then title = kind.text; break end end
             if settings.content == "raidsets" then title = addon.GetRaidSetTitle(settings) or title end
+            if settings.content == "raidcollection" then title = addon.GetRaidCollectionTitle(settings) or title end
         end
     end
     panel.title:SetText(compactSurface and string.upper(title) or title)
@@ -724,7 +733,7 @@ local function Render(panel)
     for index = groupIndex + 1, #(panel.questGroups or {}) do panel.questGroups[index]:Hide() end
     for index = #data + 1, #panel.rows do panel.rows[index]:Hide() end
     local maximumHeight = delves and settings.delvesHeight or settings.questHeight
-    local visibleHeight = (settings.content == "quests" or delves) and math.min(renderedHeight, Snap(maximumHeight, pixel)) or renderedHeight
+    local visibleHeight = (settings.content == "quests" or settings.content == "raidcollection" or delves) and math.min(renderedHeight, Snap(maximumHeight, pixel)) or renderedHeight
     panel.content:SetSize(width + clipPadding * 2, renderedHeight + clipPadding * 2)
     panel.viewport:SetHeight(visibleHeight + clipPadding * 2)
     panel.scrollMaximum = math.max(0, renderedHeight - visibleHeight)
@@ -816,6 +825,7 @@ local function AddSettings(panel)
                 if key == "delvesBountifulOnly" or key == "delvesSort" or key == "delvesHeight" then return settings.content ~= "delves" end
                 if key == "questTracker" then return settings.content ~= "quests" or not settings.questReadable end
                 if key == "questEvents" then return settings.content ~= "quests" or not settings.questReadable or not settings.questTracker end
+                if key == "questHeight" then return settings.content ~= "quests" and settings.content ~= "raidcollection" end
                 if key == "questReadable" or key == "questAuto" or key == "questObjectives" or key == "questDetails" or key == "questColors" or key == "questHeight" then return settings.content ~= "quests" end
                 if key == "questAll" then return settings.content ~= "quests" or not settings.questAuto end
                 if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto or settings.questAll end
