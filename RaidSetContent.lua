@@ -180,6 +180,7 @@ function addon.GetRaidSetRows(settings)
                     end
                     local name = _G[slot[2]] or (fr and slot[3] or slot[4])
                     local itemName = itemID and C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)
+                    if itemID and not itemName and C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(itemID) end
                     if itemName then name = name .. " : " .. itemName end
                     local unlocked = state == "direct" or state == "shared"
                     if unlocked then collected = collected + 1 end
@@ -198,10 +199,14 @@ function addon.GetRaidSetRows(settings)
                     local primary = available.upgrade and "upgrade" or available.catalyst and "catalyst" or available.both and "both"
                     if primary then
                         color = addon.raidAppearanceModes[primary].color
-                        status = addon.GetRaidActionIcon(primary) .. " " .. addon.raidAppearanceModes[primary].name
                     end
-                    lines[#lines + 1] = "|c" .. color .. name .. " — " .. status .. "|r"
-                    for _, route in ipairs(routes) do lines[#lines + 1] = "  " .. addon.GetRaidActionText(route) end
+                    lines[#lines + 1] = " "
+                    -- Collected pieces stay compact; actionable missing pieces
+                    -- are followed by the actual owned items on separate lines.
+                    lines[#lines + 1] = "|c" .. color .. name .. (#routes == 0 and (" — " .. status) or "") .. "|r"
+                    for _, route in ipairs(routes) do
+                        for _, line in ipairs(addon.GetRaidActionLines(route)) do lines[#lines + 1] = line end
+                    end
                 end
             end
             if total == 0 then unknown = true end
@@ -210,12 +215,14 @@ function addon.GetRaidSetRows(settings)
             if actionStatus == "unavailable" then lines[#lines + 1] = fr and "Active Transmog Upgrade Master pour analyser les améliorations et la catalyse." or "Enable Transmog Upgrade Master to analyze upgrades and catalyst options."
             elseif actionStatus == "loading" or actionPending then lines[#lines + 1] = fr and "Analyse des objets en cours de chargement…" or "Item analysis loading…"
             elseif actionStatus == "partial" then lines[#lines + 1] = fr and "Analyse Transmog Upgrade Master incomplète." or "Transmog Upgrade Master analysis incomplete." end
-            if next(actionModes) then lines[#lines + 1] = fr and "Objets équipés et sacs du personnage. Possibilités d'apparence ; charges et monnaies non vérifiées." or "Current character's equipped items and bags. Appearance options; charges and currencies not checked." end
+            lines[#lines + 1] = " "
+            if next(actionModes) then lines[#lines + 1] = "|cffaaaaaa" .. (fr and "Objets équipés / sacs · Charges et monnaies non vérifiées." or "Equipped / bags · Charges and currencies not checked.") .. "|r" end
             lines[#lines + 1] = fr and "Clic : prévisualiser l'ensemble" or "Click: preview the set"
             local valueText = unknown and "…" or collected .. " / " .. total
+            local collectionText = valueText
             for _, mode in ipairs({ "upgrade", "catalyst", "both" }) do if actionModes[mode] then valueText = valueText .. " " .. addon.GetRaidActionIcon(mode) end end
             rows[#rows + 1] = { name = (current and "» " or "") .. entry.name, raidSetID = setID, raidSetCurrent = current, value = collected, maximum = total,
-                valueText = valueText, fitValue = true, raidActionModes = actionModes, raidPreviewSources = previewSources,
+                valueText = valueText, raidCollectionText = collectionText, fitValue = true, raidActionModes = actionModes, raidPreviewSources = previewSources,
                 compactColor = complete and { .3, 1, .3 } or colors[difficulty or 1],
                 icon = complete and "Interface\\RaidFrame\\ReadyCheck-Ready" or 132143, tooltipLines = lines }
         end

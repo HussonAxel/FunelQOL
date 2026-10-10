@@ -103,10 +103,13 @@ function addon.GetRaidSlotActions(setID, slot, sources)
     return routes, index.status, index.pending
 end
 
-function addon.GetRaidActionText(route)
+function addon.GetRaidActionLines(route)
     local mode = modes[route.mode]
-    return "|c" .. mode.color .. Icon(route.mode) .. " " .. mode.name .. "|r : " .. route.itemLink .. " · " .. route.location ..
-        (route.mode ~= "catalyst" and route.upgrade and (" · " .. route.upgrade) or "")
+    -- Put the owned object's name first. Method and location remain secondary,
+    -- rather than squeezing a hyperlink between two repeated action labels.
+    local action = "|c" .. mode.color .. Icon(route.mode) .. " " .. mode.name .. "|r"
+    if route.mode ~= "catalyst" and route.upgrade then action = action .. " · " .. route.upgrade end
+    return { "  " .. route.itemLink, "  " .. action .. " |cffaaaaaa· " .. route.location .. "|r" }
 end
 
 function addon.PreviewRaidSet(data)

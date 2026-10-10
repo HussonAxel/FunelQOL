@@ -251,7 +251,10 @@ local function CreateRow(panel)
             GameTooltip:SetSpellByID(data.spellID)
         else
             GameTooltip:SetText(data.name, 1, 0.82, 0)
-            if data.valueText and data.valueText ~= "" then GameTooltip:AddLine(data.valueText, 1, 1, 1) end
+            if data.raidSetID then
+                GameTooltip:SetMinimumWidth(420, true)
+                GameTooltip:AddLine(data.raidCollectionText, 1, 1, 1)
+            elseif data.valueText and data.valueText ~= "" then GameTooltip:AddLine(data.valueText, 1, 1, 1) end
             for _, line in ipairs(data.tooltipLines or {}) do GameTooltip:AddLine(line, 1, 1, 1, true) end
         end
         GameTooltip:Show()
@@ -277,6 +280,7 @@ local function CreateRow(panel)
         end
     end)
     row:SetScript("OnLeave", function(self)
+        if self.data and self.data.raidSetID then GameTooltip:SetMinimumWidth(0, false) end
         GameTooltip:Hide()
         self.isHovered = false
         PaintBorder(self)

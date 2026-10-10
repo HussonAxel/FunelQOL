@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.12.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.12.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -228,6 +228,8 @@ This uses the side-link, offset, dependency-order, scale-conversion and cycle-gu
 ### Raid appearance actions and preview (0.12.0)
 
 With Transmog Upgrade Master enabled, raid-set tooltips mark missing pieces according to the owned items that can lead to their appearance: **orange / upgrade icon** for upgrading, **purple / catalyst icon** for catalyzing, **yellow / both icons** for catalyzing and upgrading. Each route lists the actual item hyperlink, equipped/bag location and the current-to-required upgrade level when TUM supplies a seasonal breakpoint. A difficulty row adds the relevant action icons next to its existing collection count. Potential appearances never count as already collected. Already learned or shared appearances retain their collected state and show no action recommendation.
+
+Version 0.12.1 spaces each appearance slot in a wider (420-unit) hover. The target piece's name is the heading, followed by each usable owned item's full hyperlink on its own line; method, upgrade breakpoint and inventory location appear underneath. Repeated method labels and summary icons are omitted from the hover. The width override is cleared on mouse leave, following [Blizzard's tooltip width pattern](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_InspectUI/Mists/InspectTalentFrame.lua). TUM remains the item-analysis source.
 
 The scan covers this character's equipped items and carried bags; bank/warband/other-character inventories are not scanned. Identical item links are deduplicated. Upgrade-only results are matched to the target set's actual visual ID and slot, rather than inferred from an item's upgrade track. Catalyst routes use TUM's explicit class/season/difficulty mapping and result flags; PvP appearances and appearances already learned from another item are excluded. The indicators describe appearance paths, not affordability: catalyst charges, currencies and vendor availability are not checked. Hover names and methods explain the icons.
 

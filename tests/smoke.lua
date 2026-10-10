@@ -62,7 +62,7 @@ local physicalHeight = 1080
 UIParent:SetScale(768 / physicalHeight)
 function GetPhysicalScreenSize() return 1920, physicalHeight end
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, message) messages[#messages + 1] = message end }
-GameTooltip = { SetOwner = function() end, SetCurrencyByID = function() end, SetText = function() end, AddLine = function() end, Show = function() end, Hide = function() end }
+GameTooltip = { SetOwner = function() end, SetCurrencyByID = function() end, SetText = function() end, AddLine = function() end, SetMinimumWidth = function() end, Show = function() end, Hide = function() end }
 SlashCmdList = {}
 function GetLocale() return "frFR" end
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
@@ -1609,6 +1609,16 @@ local actionRow = persistedAddon.GetPanelRows(actionsSettings)[1]
 assert(actionRow.raidActionModes.upgrade and actionRow.raidActionModes.catalyst and actionRow.raidActionModes.both)
 assert(actionRow.value == 0 and actionRow.maximum == 4, "Potential appearances counted as already collected")
 local actionHover = table.concat(actionRow.tooltipLines, " ")
+local blankLines, namedObjects = 0, 0
+for index, line in ipairs(actionRow.tooltipLines) do
+    if line == " " then blankLines = blankLines + 1 end
+    if line:find("|Hitem:", 1, true) then
+        namedObjects = namedObjects + 1
+        assert(line:match("^  |c") and not line:find("Sac", 1, true) and not line:find("→", 1, true), "Item name shares its line with action details")
+        assert(actionRow.tooltipLines[index + 1]:find("·", 1, true), "Object lacks separate method/location details")
+    end
+end
+assert(blankLines >= 4 and namedObjects == 3, "Raid pieces lack spacing or exact owned-object names")
 assert(actionHover:find("7001",1,true) and actionHover:find("7002",1,true) and actionHover:find("7003",1,true))
 assert(not actionHover:find("7004",1,true) and not actionHover:find("7005",1,true) and not actionHover:find("7006",1,true), "Unrelated/shared/PvP appearances advertised")
 assert(actionHover:find("2 → 6 / 8",1,true) and actionHover:find("Équipé",1,true) and actionHover:find("Sac 0",1,true))
@@ -1625,6 +1635,12 @@ combat = false
 SetSetting(first, "content", "raidsets")
 local function NormalSet() for _, row in ipairs(first.rows) do if row.shown and row.data.raidSetID == 5858 then return row end end end
 local normal = NormalSet()
+local tooltipWidth
+GameTooltip.SetMinimumWidth = function(_, width) tooltipWidth = width end
+normal.scripts.OnEnter(normal)
+assert(tooltipWidth == 420, "Raid hover retains narrow wrapping width")
+normal.scripts.OnLeave(normal)
+assert(tooltipWidth == 0, "Raid hover width leaks to other tooltips")
 normal.scripts.OnClick(normal)
 assert(previewIDs and #previewIDs == 4)
 previewIDs = nil
