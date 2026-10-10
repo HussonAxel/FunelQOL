@@ -30,6 +30,8 @@ function methods:GetLeft() return 137.27 + (self.point and self.point[4] or 0) e
 function methods:GetTop() return 531.43 + (self.point and self.point[5] or 0) end
 function methods:GetRegions() end
 function methods:GetParent() return self.parent end
+function methods:IsShown() return self.shown end
+function methods:SetChecked(checked) self.checked = checked end
 function methods:SetRotation(rotation) self.rotation = rotation end
 function methods:SetFrameLevel(level) self.level = level end
 function methods:GetFrameLevel() return self.level or 1 end
@@ -82,7 +84,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -163,7 +165,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -275,7 +277,7 @@ assert(first.rows[1].data.name == "Notes" and first.rows[2].data.name == "Bank" 
 local function FindEditor()
     for index = #frames, 1, -1 do
         local frame = frames[index]
-        if frame.width == 560 and frame.height == 414 then return frame end
+        if frame.width == 560 and (frame.height == 414 or frame.height == 620) then return frame end
     end
 end
 SlashCmdList.FUNELQOL("content 1")
@@ -305,28 +307,30 @@ SetSetting(first, "content", "currencies")
 assert(not editor.shown)
 SlashCmdList.FUNELQOL("content 1")
 editor = FindEditor()
-local dropdown
-for _, frame in ipairs(frames) do if frame.parent == editor and frame.menu then dropdown = frame; break end end
-local choices = {}
-local root = { SetScrollMode = function() end, CreateRadio = function(_, name, selected, click) choices[name] = click end }
-dropdown.menu(dropdown, root)
-choices.Token()
-assert(settings.selections.currencies[1] == 2 and first.rows[1].data.name == "Token")
-local idBox
-for _, frame in ipairs(frames) do
-    if frame.parent == editor and frame.point and frame.point[2] == 48 and frame.point[3] == -380 then idBox = frame end
+local function CurrencyChoice(name)
+    for _, frame in ipairs(frames) do
+        if frame.entry and frame.entry.name == name and frame.shown then return frame end
+    end
+    error("Missing currency checkbox " .. name)
 end
-idBox:SetText("4")
-EditorButton("Ajouter un ID monnaie", -380).scripts.OnClick()
+local dropdown, choices
+local root = { SetScrollMode = function() end, CreateRadio = function(_, name, selected, click) choices[name] = click end }
+CurrencyChoice("Token").scripts.OnClick(CurrencyChoice("Token"))
+assert(settings.selections.currencies[1] == 3 and settings.selections.currencies[3] == 0, "Unchecking does not compact selected currencies")
+CurrencyChoice("Token").scripts.OnClick(CurrencyChoice("Token"))
+assert(settings.selections.currencies[3] == 2 and first.rows[3].data.name == "Token")
+newAddon.currencyRegistry[#newAddon.currencyRegistry + 1] = {4,1}
+editor.update()
+CurrencyChoice("Hidden currency").scripts.OnClick(CurrencyChoice("Hidden currency"))
 assert(settings.selections.currencies[4] == 4 and first.rows[4].data.name == "Hidden currency")
 LEM.active = "Classic"; LEM.callbacks.layout("Classic")
 assert(not editor.shown and newAddon.panels[1].rows[1].data.name == "Aperçu 1")
 LEM.active = "Modern"; LEM.callbacks.layout("Modern")
-assert(first.rows[1].data.name == "Token" and first.rows[4].data.name == "Hidden currency")
+assert(first.rows[3].data.name == "Token" and first.rows[4].data.name == "Hidden currency")
 LEM.callbacks.create("ContentCopy", 4, "Modern")
 local copy = FunelQOLCharDB.layouts.ContentCopy.panel1
 copy.selections.currencies[1] = 0
-assert(settings.selections.currencies[1] == 2 and copy.customRows ~= settings.customRows)
+assert(settings.selections.currencies[1] == 3 and copy.customRows ~= settings.customRows)
 settings.selections.currencies = { 0, 0, 0, 0, 0, 0, 0, 0 }
 newAddon.RefreshPanels()
 assert(first.rows[1].data.name == newAddon.panelText.empty and not first.rows[2].shown)
@@ -335,7 +339,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -343,7 +347,7 @@ persistedCore.scripts.OnEvent(persistedCore, "ADDON_LOADED", "FunelQOL")
 persistedCore.scripts.OnEvent(persistedCore, "PLAYER_LOGIN")
 assert(persistedAddon.panels[1].rows[1].data.name == "Notes" and persistedAddon.panels[1].rows[2].data.name == "Bank")
 assert(persistedAddon.panels[2].rows[1].data.name == "Aperçu 1")
-print("PASS: live currencies, seasonal caps, money events, sparse professions, selected talents, custom rows, native editor selection/reorder/remove/reuse, manual IDs, layout isolation and deep copies.")
+print("PASS: live currencies, seasonal caps, money events, sparse professions, selected talents, custom rows, currency checkboxes, editor selection/reorder/remove/reuse, layout isolation and deep copies.")
 -- Quest tracking: watch order, world quests, live objectives and manual selection.
 local watches, worldWatches = { 101, 102 }, { 102, 103 }
 local questProgress, questComplete = 2, false
@@ -1790,3 +1794,70 @@ visualSettings.selections.currencies = {-2,-1,2,0,0,0,0,0}
 persistedAddon.RefreshPanels()
 for _, row in ipairs(first.rows) do if row.shown then assert(not row.bar.shown, "Balance-only currency gains misleading gauge") end end
 print("PASS: one-time 80 percent saved-background migration, subsequent opacity edits, subtle compact renown next-level/max/locked gauges, styles/widths, gauge toggle, vault/raid/profession progress and balance-only exclusions.")
+local beforeCurrencyInfo=C_CurrencyInfo.GetCurrencyInfo
+for i=1,9 do persistedAddon.currencyRegistry[#persistedAddon.currencyRegistry+1]={90000+i,264} end
+local menuQueries=0
+C_CurrencyInfo.GetCurrencyInfo=function(id)
+    menuQueries=menuQueries+1
+    if id>90000 and id<=90009 then return {name="Currency "..(id-90000),iconFileID=134400,quantity=0} end
+    return beforeCurrencyInfo(id)
+end
+visualSettings.selections.currencies={2,3,0,0,0,0,0,0}
+persistedAddon.ConfigurePanel(1)
+local currencyWindow=FindEditor()
+assert(currencyWindow.height==620 and currencyWindow.shown)
+local function InCurrencyWindow(frame)
+    while frame do if frame==currencyWindow then return true end; frame=frame.parent end
+end
+local function VisibleCurrency(name)
+    for _,frame in ipairs(frames) do if InCurrencyWindow(frame) and frame.entry and frame.shown and frame.entry.name==name then return frame end end
+end
+assert(VisibleCurrency("Token").check.checked and VisibleCurrency("Season").check.checked, "Saved selections were not retained")
+assert(VisibleCurrency("Currency 1") and not VisibleCurrency("Currency 1").check.checked, "Undiscovered registered currency missing")
+local hasMidnight, searchBox=false,nil
+for _,frame in ipairs(frames) do
+    if InCurrencyWindow(frame) and frame.text=="Midnight" then hasMidnight=true end
+    if frame.parent==currencyWindow and frame.scripts.OnTextChanged then searchBox=frame end
+end
+assert(hasMidnight and searchBox, "Missing category heading/search")
+searchBox:SetText("Currency 1"); searchBox.scripts.OnTextChanged(searchBox,true)
+assert(VisibleCurrency("Currency 1") and not VisibleCurrency("Token"), "Search leaves unrelated currencies visible")
+VisibleCurrency("Currency 1").scripts.OnClick(VisibleCurrency("Currency 1"))
+assert(visualSettings.selections.currencies[3]==90001 and first.rows[3].data.valueText=="0", "Zero-balance currency could not be selected")
+searchBox:SetText(""); searchBox.scripts.OnTextChanged(searchBox,true)
+for i=2,6 do VisibleCurrency("Currency "..i).scripts.OnClick(VisibleCurrency("Currency "..i)) end
+local checked=0
+for _,id in ipairs(visualSettings.selections.currencies) do if id~=0 then checked=checked+1 end end
+assert(checked==8)
+VisibleCurrency("Currency 7").scripts.OnClick(VisibleCurrency("Currency 7"))
+assert(not VisibleCurrency("Currency 7").check.checked and visualSettings.selections.currencies[8]==90006, "Checkbox cap silently replaces a saved row")
+local moveDown, removeFirst, clearAll
+for _,frame in ipairs(frames) do
+    if frame.parent==currencyWindow then
+        if frame.text=="↓" and frame.point[3]==-458 then moveDown=frame end
+        if frame.text=="×" and frame.point[3]==-458 then removeFirst=frame end
+        if frame.text=="Tout retirer" then clearAll=frame end
+    end
+end
+-- There are two columns; use the first column's buttons.
+for _,frame in ipairs(frames) do
+    if frame.parent==currencyWindow and frame.point and frame.point[3]==-458 then
+        if frame.text=="↓" and frame.point[2]==210 then moveDown=frame end
+        if frame.text=="×" and frame.point[2]==236 then removeFirst=frame end
+    end
+end
+moveDown.scripts.OnClick()
+assert(visualSettings.selections.currencies[1]==3 and visualSettings.selections.currencies[2]==2)
+removeFirst.scripts.OnClick()
+assert(visualSettings.selections.currencies[1]==2 and not VisibleCurrency("Season").check.checked, "Removal fails to sync checks/order")
+local frameCount=#frames
+persistedAddon.CloseContentEditor(); assert(not currencyWindow.shown)
+persistedAddon.ConfigurePanel(1); assert(#frames==frameCount and currencyWindow.shown, "Currency editor reopen leaks frames")
+menuQueries=0
+persistedAddon.RefreshPanels()
+assert(menuQueries<20, "Every panel refresh scans entire currency registry")
+clearAll.scripts.OnClick()
+assert(first.rows[1].data.name==persistedAddon.panelText.empty and not VisibleCurrency("Token").check.checked)
+persistedAddon.CloseContentEditor()
+C_CurrencyInfo.GetCurrencyInfo=beforeCurrencyInfo
+print("PASS: visual categorized two-column currency selection, native icons/check states, saved selections, undiscovered zero balances, search, eight-row cap, reorder/removal/clear, editor reuse and no full-catalog scans during tracking.")

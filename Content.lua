@@ -36,6 +36,7 @@ function addon.GetContentCatalog(kind)
     if kind == "quests" then return addon.GetQuestCatalog() end
     local rows = {}
     if kind == "currencies" then
+        if addon.GetCurrencyCatalog then return addon.GetCurrencyCatalog() end
         rows[1] = { id = -1, name = text.money, icon = 133784, valueText = C_CurrencyInfo.GetCoinTextureString(GetMoney()) }
         rows[2] = { id = -2, name = text.crests }
         local seen = { [-1] = true }
@@ -177,7 +178,8 @@ function addon.GetPanelRows(settings)
             end
         end
     else
-        local catalog = addon.GetContentCatalog(settings.content)
+        local saved = settings.selections and settings.selections[settings.content]
+        local catalog = settings.content == "currencies" and type(saved) == "table" and {} or addon.GetContentCatalog(settings.content)
         local lookup = {}
         for _, entry in ipairs(catalog) do lookup[entry.id] = entry end
         for _, id in ipairs(addon.GetContentSelection(settings, catalog)) do

@@ -25,10 +25,12 @@ end
 
 function addon.CloseContentEditor()
     if editor then editor:Hide() end
+    if addon.CloseCurrencyEditor then addon.CloseCurrencyEditor() end
 end
 
 function addon.OpenContentEditor(settings, refresh)
     addon.CloseContentEditor()
+    if settings.content == "currencies" then return addon.OpenCurrencyEditor(settings, refresh) end
     local cache = editors[settings]
     if cache and cache[settings.content] then
         editor = cache[settings.content]
@@ -142,40 +144,8 @@ function addon.OpenContentEditor(settings, refresh)
             Update()
         end)
     end
-    if settings.content == "currencies" then
-        local idBox = Edit(editor, 48, -380, 160, function() end)
-        Button(editor, GetLocale() == "frFR" and "Ajouter un ID monnaie" or "Add currency ID", 222, -380, 210, function()
-            local id = tonumber(idBox:GetText())
-            if not id or id <= 0 or id ~= math.floor(id) then hint:SetText(GetLocale() == "frFR" and "Saisis un ID de monnaie valide." or "Enter a valid currency ID."); return end
-            local info = C_CurrencyInfo.GetCurrencyInfo(id)
-            if not info or not info.name or info.name == "" then hint:SetText(GetLocale() == "frFR" and "Monnaie introuvable." or "Currency not found."); return end
-            for index = 1, 8 do
-                if list[index] == 0 then
-                    list[index] = id
-                    hint:SetText(text.hint)
-                    window.update()
-                    idBox:SetText("")
-                    return
-                end
-            end
-            hint:SetText(GetLocale() == "frFR" and "Les huit lignes sont occupées. Retire une ligne avant d’ajouter une monnaie." or "All eight rows are occupied. Clear a row before adding a currency.")
-        end)
-    end
     window.update = function()
         catalog = addon.GetContentCatalog(settings.content)
-        if settings.content == "currencies" then
-            local seen = {}
-            for _, entry in ipairs(catalog) do seen[entry.id] = true end
-            for _, id in ipairs(list) do
-                if id > 0 and not seen[id] then
-                    local info = C_CurrencyInfo.GetCurrencyInfo(id)
-                    if info and info.name and info.name ~= "" then
-                        catalog[#catalog + 1] = { id = id, name = info.name }
-                        seen[id] = true
-                    end
-                end
-            end
-        end
         Update()
     end
     window.update()
