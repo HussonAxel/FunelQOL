@@ -759,7 +759,7 @@ function addon.InitializePanels()
     end
     events:RegisterEvent("ACHIEVEMENT_EARNED")
     events:RegisterEvent("CRITERIA_UPDATE")
-    for _, event in ipairs({ "WEEKLY_REWARDS_UPDATE", "WEEKLY_REWARDS_ITEM_CHANGED", "UPDATE_FACTION",
+    for _, event in ipairs({ "TRANSMOG_COLLECTION_UPDATED", "CHALLENGE_MODE_MAPS_UPDATE", "WEEKLY_REWARDS_UPDATE", "WEEKLY_REWARDS_ITEM_CHANGED", "UPDATE_FACTION",
         "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "MAJOR_FACTION_UNLOCKED", "GET_ITEM_INFO_RECEIVED" }) do events:RegisterEvent(event) end
     local delveEvents = { AREA_POIS_UPDATED = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true,
         ACTIVE_DELVE_DATA_UPDATE = true, UPDATE_ALL_UI_WIDGETS = true, ACHIEVEMENT_EARNED = true, CRITERIA_UPDATE = true }

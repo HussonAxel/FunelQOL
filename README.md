@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.9.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.10.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -196,3 +196,15 @@ The existing **Delves** content also displays **XP quest: <status>** below the v
 Completion uses the active character's `C_QuestLog.IsQuestFlaggedCompleted`, never account completion. Readiness requires the quest to be in the character's journal and complete; accepting, abandoning, turning in and quest-data updates refresh both panels. **Not accepted** means absent from the journal and not flagged complete; it does not claim that campaign/level prerequisites are satisfied. No fixed XP reward is displayed because it can depend on the character and bonuses.
 
 Verified mapping from [Wowhead's Midnight Delver's Call quest database](https://www.wowhead.com/storyline/delvers-call-midnight-6051): Shadow Enclave 93372; Collegiate Calamity 93384; Darkway 93385; Parhelion Plaza 93386; Atal'Aman 93409; Twilight Crypts 93410; Gulf of Memory 93416; Grudge Pit 93421; Sunkiller Sanctum 93427; Shadowguard Point 93428. The two Coiled Isle delves have no verified quest mapping in this list, so no quest is invented for them. State APIs: [Blizzard quest-log documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLogDocumentation.lua). Providers live in `DelveQuestContent.lua`; mappings are attached to `DelveRatings.lua` definitions.
+
+### Seasonal raid appearance sets
+
+After `/reload`, choose **Content → Raid sets · season** (French: **Contenu → Sets de raid · saison**) in `/funelqol edit`. The compact panel displays Raid Finder, Normal, Heroic and Mythic by default, with collected appearance slots / total per difficulty. **Configure rows** selects and reorders difficulties independently per panel/layout. Completed variants turn green with a check icon. Hover a difficulty to see the localized set name, season, each available slot and its collected/missing state; cached item names are included when available.
+
+This tracks the account's appearance collection for the active character's class. Learning the same visual through another item (including upgraded or catalyzed gear) counts as collected and is identified in the tooltip. It does not infer collection from bags, equipped gear or tier-bonus activation. Multiple sources for a slot count once; robes and chest armor share one slot. Slots absent from the set are excluded, so the denominator follows the actual set. Missing collection data displays a loading indicator instead of a false completion count.
+
+Midnight Seasons 1 and 2 are supported for all 13 classes. The live `C_MythicPlus.GetCurrentSeason()` determines the season. While unavailable, the 12.0/12.1 client interface supplies the fallback; an unknown positive season ID explicitly shows unavailable rather than presenting old sets as current. Future seasons require new set IDs. Collection changes, login and season-map updates refresh the tracker.
+
+The implementation was informed by the installed [Transmog Upgrade Master](https://www.curseforge.com/wow/addons/transmog-upgrade-master) v1.5.27: class/season/difficulty set IDs and checking other sources sharing an appearance. FunelQOL uses its own provider and renderer and requires no TUM dependency or media. API references: [Blizzard transmog sets](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/TransmogSetsDocumentation.lua) and [Blizzard appearance collection](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/TransmogItemsDocumentation.lua).
+
+Mocked smoke checks cover class/difficulty mapping, season changes, shared appearances, duplicate-source and robe grouping, saved selections, collection events, loading/unsupported states, and compact bounds across the three styles. Live client appearance still needs validation.

@@ -80,7 +80,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -161,7 +161,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -333,7 +333,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -1311,3 +1311,86 @@ assert(delveCall.data.delveGrade == "C" and delveCall.data.delveQuest.status == 
 assert(delveCall.meta.text:find("Quête XP", 1, true) and delveCall.meta.text:find("Rendue", 1, true))
 delveCall.scripts.OnEnter(delveCall)
 print("PASS: ten verified Delver's Call quests, per-character accepted/ready/turned-in/failed/unknown states, localized title loading, quest events and abandonment, completed filter/layout copy, all-row compact rendering, guarded clicks and existing Delves metadata.")
+
+-- Raid appearance collection: count slots, not duplicate sources or equipped items.
+local raidSeason, raidClass, raidLoading = 18, 8, false
+function UnitClass() return "Mage", "MAGE", raidClass end
+C_MythicPlus = { GetCurrentSeason = function() return raidSeason end }
+local learnedSources = { [100] = true, [900] = true }
+C_TransmogCollection = {
+    GetSourceInfo = function(id)
+        if id == 999 then return nil end
+        return { visualID = id == 101 and 800 or id, isCollected = learnedSources[id] or false, itemID = id + 10000 }
+    end,
+    GetAllAppearanceSources = function(visual) return visual == 800 and { 101, 900 } or { visual } end,
+}
+C_TransmogSets = {
+    GetSetInfo = function(id) if not raidLoading then return { setID = id, name = "Mage saison " .. raidSeason } end end,
+    GetSourcesForSlot = function(id, slot)
+        if raidLoading then return nil end
+        if slot == 1 then return { { sourceID = 100 }, { sourceID = 100 } } end
+        if slot == 3 then return { { sourceID = 101 } } end
+        if slot == 20 then return { { sourceID = 102 } } end
+        return {}
+    end,
+}
+local raidSettings = { content = "raidsets" }
+local raidRows = persistedAddon.GetPanelRows(raidSettings)
+assert(#raidRows == 4 and raidRows[1].raidSetID == 5857 and raidRows[4].raidSetID == 5860)
+assert(raidRows[1].valueText == "2 / 3" and raidRows[1].maximum == 3, "Duplicate sources or robe inflate slot totals")
+assert(table.concat(raidRows[1].tooltipLines, " "):find("autre objet", 1, true), "Identical learned appearance is missed")
+assert(table.concat(raidRows[1].tooltipLines, " "):find("Manquant", 1, true))
+raidSettings.selections.raidsets = { 4, 2, 4, 0, 0, 0, 0, 0 }
+raidRows = persistedAddon.GetPanelRows(raidSettings)
+assert(#raidRows == 2 and raidRows[1].raidSetID == 5860 and raidRows[2].raidSetID == 5858)
+raidSeason = 17
+assert(persistedAddon.GetPanelRows(raidSettings)[1].raidSetID == 5440, "Season switch retains the wrong raid")
+raidSeason = 19
+assert(not persistedAddon.GetPanelRows(raidSettings)[1].raidSetID, "Unsupported season falsely displays old sets")
+raidSeason = 18
+local classBases = { 5885, 5865, 5853, 5873, 5869, 5837, 5877, 5857, 5881, 5861, 5845, 5841, 5849 }
+for classID = 1, 13 do
+    raidClass = classID
+    local variants = persistedAddon.GetPanelRows({ content = "raidsets" })
+    assert(#variants == 4 and variants[1].raidSetID == classBases[classID] and variants[4].raidSetID == classBases[classID] + 3)
+end
+raidClass = 8
+local originalBuildInfo = GetBuildInfo
+GetBuildInfo = function() return "12.1.0", "123", "", 120100 end
+raidSeason = 0
+assert(persistedAddon.GetPanelRows(raidSettings)[1].raidSetID == 5860)
+GetBuildInfo = function() return "12.0.0", "123", "", 120000 end
+assert(persistedAddon.GetPanelRows(raidSettings)[1].raidSetID == 5440)
+GetBuildInfo = originalBuildInfo
+raidSeason = 18
+local originalSources = C_TransmogSets.GetSourcesForSlot
+C_TransmogSets.GetSourcesForSlot = function(_, slot) return slot == 1 and { { sourceID = 999 } } or {} end
+assert(persistedAddon.GetPanelRows(raidSettings)[1].valueText == "…", "Missing source info reported as uncollected")
+C_TransmogSets.GetSourcesForSlot = nil
+assert(not persistedAddon.GetPanelRows(raidSettings)[1].raidSetID)
+C_TransmogSets.GetSourcesForSlot = originalSources
+raidLoading = true
+assert(persistedAddon.GetPanelRows(raidSettings)[1].valueText == "…", "Loading data reported as uncollected")
+raidLoading = false
+SetSetting(first, "content", "raidsets")
+assert(first.rows[1].data.raidSetID == 5857 and not first.rows[5].shown)
+learnedSources[102] = true
+assert(progressEvents.events.TRANSMOG_COLLECTION_UPDATED and progressEvents.events.CHALLENGE_MODE_MAPS_UPDATE)
+progressEvents.scripts.OnEvent(progressEvents, "TRANSMOG_COLLECTION_UPDATED")
+assert(first.rows[1].value.text == "3 / 3" and first.rows[1].data.compactColor[2] == 1)
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, row in ipairs(first.rows) do if row.shown then
+                assert(row.value.width >= row.value:GetUnboundedStringWidth())
+                assert(not row.border.shown and row.label.width > 0)
+                row.scripts.OnEnter(row)
+            end end
+        end
+    end
+end
+persistedAddon.ConfigurePanel(1)
+print("PASS: current-season raid sets for all classes and four difficulties, account/shared appearances, duplicate-source and robe grouping, live collection updates, selection ordering, loading/unsupported states and compact rendering in all styles.")
