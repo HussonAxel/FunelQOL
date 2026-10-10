@@ -148,7 +148,7 @@ function addon.GetRaidCollectionRows(settings)
         entry.fitValue = true
         buckets[key].entries[#buckets[key].entries+1] = entry
     end
-    local setSettings = {raidSetsFollowInstance=true, selections={raidsets={context.difficulty or 2}}}
+    local setSettings = {content="raidsets", raidSetsFollowInstance=true, selections={raidsets={context.difficulty or 2}}}
     for _, set in ipairs(addon.GetRaidSetRows(setSettings, context)) do
         if set.raidSetCurrent then
             for _, piece in ipairs(set.raidSetPieces or {}) do
