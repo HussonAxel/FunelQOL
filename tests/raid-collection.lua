@@ -102,4 +102,30 @@ throw=false; rows=addon.GetRaidCollectionRows(settings); Restored(); assert(rows
 loot[1].link=nil
 frames[1].onEvent(frames[1],"EJ_LOOT_DATA_RECIEVED"); Flush()
 rows=addon.GetRaidCollectionRows(settings); Restored(); assert(rows[1].valueText=="…","Incomplete loot silently treated as a complete collection")
+local combat, previewKind, previewLink, setPreview
+InCombatLockdown=function() return combat end
+DressUpMountLink=function(link) previewKind="mount"; previewLink=link; return true end
+DressUpBattlePetLink=function(link) previewKind="pet"; previewLink=link; return true end
+DressUpItemLink=function(link) previewKind="appearance"; previewLink=link; return true end
+addon.PreviewRaidSet=function(data) setPreview=data; return true end
+loot[1].link="item:1:heroic"
+frames[1].onEvent(frames[1],"EJ_LOOT_DATA_RECIEVED"); Flush()
+settings.raidCollection.showCollected=true
+rows=addon.GetRaidCollectionRows(settings)
+for _,kind in ipairs({"mount","pet","appearance"}) do
+    local entry=Find(rows,kind)
+    assert(entry and addon.PreviewRaidCollectionReward(entry),"Missing preview for "..kind)
+    assert(previewKind==kind and previewLink==entry.raidCollectionLink,"Preview lost raid difficulty link")
+    assert(entry.tooltipLines[#entry.tooltipLines]=="Click: preview.","Missing preview hint")
+end
+local entry=Find(rows,"set")
+assert(addon.PreviewRaidCollectionReward(entry) and setPreview==entry,"Set preview regressed")
+assert(not addon.PreviewRaidCollectionReward(Find(rows,"toy")),"Toy must not be used by preview")
+assert(not addon.PreviewRaidCollectionReward(nil))
+combat=true; previewLink=nil; setPreview=nil
+assert(not addon.PreviewRaidCollectionReward(Find(rows,"mount")) and not previewLink)
+assert(not addon.PreviewRaidCollectionReward(entry) and not setPreview)
+combat=false; DressUpMountLink=nil
+assert(not addon.PreviewRaidCollectionReward(Find(rows,"mount")),"Unavailable preview API must not throw")
+assert(not addon.PreviewRaidCollectionReward({raidCollectionKind="appearance"}),"Missing link must not throw")
 print("PASS: raid collectibles, current difficulty links, class sets, shared appearances, category/collected filters, boss folding, last raid, async loading, visible journal deferral and state restoration on success/error.")

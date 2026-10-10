@@ -29,3 +29,9 @@ Sources: [Mount Journal API](https://github.com/Gethe/wow-ui-source/blob/live/In
 The set API does not expose a general token-to-class-piece redemption mapping. A token without an appearance must not be classified as a collected armor piece from its name or slot alone. Display class-set missing pieces separately when no reliable journal boss association exists.
 
 Source: [transmog sets API](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/TransmogSetsDocumentation.lua).
+
+## Reward previews
+
+Left-click an appearance, mount or battle pet row to open the native dressing room. The complete Encounter Journal item link is passed to `DressUpItemLink`, `DressUpMountLink` or `DressUpBattlePetLink`, so difficulty bonus IDs are preserved and uncollected rewards can be viewed. Class set pieces keep their whole-set preview. Toys have no dress-up preview. Clicks are ignored in Edit Mode and combat.
+
+API behavior: [Retail DressUpFrames.lua](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/DressUpFrames.lua).

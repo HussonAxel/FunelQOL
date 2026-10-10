@@ -288,8 +288,8 @@ local function CreateRow(panel)
         if self.data.raidCollectionBossKey then
             addon.ToggleRaidCollectionBoss(Settings(panel.definition.id), self.data.raidCollectionBossKey)
             addon.RefreshPanels()
-        elseif self.data.raidCollectionKind == "set" then
-            addon.PreviewRaidSet(self.data)
+        elseif self.data.raidCollectionKind then
+            addon.PreviewRaidCollectionReward(self.data)
         elseif self.data.raidSetID then
             addon.PreviewRaidSet(self.data)
         elseif self.data.trackerSection then

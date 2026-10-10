@@ -2002,6 +2002,14 @@ do
     assert(boss and reward)
     reward.scripts.OnEnter(reward)
     assert(itemTooltip==reward.data.raidCollectionLink)
+    local previewLink
+    DressUpMountLink = function(link) previewLink=link; return true end
+    reward.scripts.OnClick(reward, "LeftButton")
+    assert(previewLink==reward.data.raidCollectionLink, "Reward row did not open the native preview")
+    previewLink=nil; combat=true
+    reward.scripts.OnClick(reward, "LeftButton")
+    assert(not previewLink, "Reward preview opened in combat")
+    combat=false
     boss.scripts.OnClick(boss)
     assert(settings.raidCollection.collapsed["boss:11"])
     for _,row in ipairs(first.rows) do assert(not(row.shown and row.data.raidCollectionLink)) end

@@ -123,6 +123,18 @@ local function Classify(record)
     return "appearance", false
 end
 
+-- Native previews accept uncollected rewards and retain difficulty bonus IDs.
+function addon.PreviewRaidCollectionReward(data)
+    if not data or InCombatLockdown() then return false end
+    if data.raidCollectionKind == "set" then return addon.PreviewRaidSet(data) end
+    local preview
+    if data.raidCollectionKind == "mount" then preview = DressUpMountLink
+    elseif data.raidCollectionKind == "pet" then preview = DressUpBattlePetLink
+    elseif data.raidCollectionKind == "appearance" then preview = DressUpItemLink end
+    if not preview or not data.raidCollectionLink then return false end
+    return preview(data.raidCollectionLink)
+end
+
 function addon.ToggleRaidCollectionBoss(settings, key)
     local _, options = Context(settings)
     options.collapsed[key] = not options.collapsed[key] or nil
@@ -170,7 +182,8 @@ function addon.GetRaidCollectionRows(settings)
             if kind then
                 Add("boss:"..record.bossID, record.boss, { name=record.name, icon=record.icon, raidCollectionKind=kind,
                     raidCollectionItemID=record.itemID, raidCollectionLink=record.link,
-                    tooltipLines={record.boss, context.name .. " · " .. (context.difficultyName or ""), collected and (fr and "Déjà collectionné" or "Collected") or (fr and "Manquant" or "Missing")} }, collected, false)
+                    tooltipLines={record.boss, context.name .. " · " .. (context.difficultyName or ""), collected and (fr and "Déjà collectionné" or "Collected") or (fr and "Manquant" or "Missing"),
+                        kind ~= "toy" and (fr and "Clic : prévisualiser." or "Click: preview.") or nil} }, collected, false)
             elseif kind == nil then loading = loading + 1 end
         end
     end
