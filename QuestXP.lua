@@ -103,7 +103,7 @@ function addon.WithQuestXPSummary(rows, settings)
         end
     end
     local function SummaryRow(label, amount, missing, color)
-        local value = (missing > 0 and "≥ " or "") .. Number(amount)
+        local value = (missing > 0 and ">= " or "") .. Number(amount)
         local readable = settings.content == "quests" and settings.questReadable
         return { name = label .. (readable and (" : " .. value) or ""), valueText = readable and "" or value,
             labelColor = color, fitValue = true, wrap = readable, tooltipLines = lines, questXPSummary = true }
@@ -116,14 +116,21 @@ end
 -- Rewards depend on character level and current modifiers; don't cache XP
 -- values across aura changes or attempt to derive bonuses from localized text.
 local events = CreateFrame("Frame")
-for _, event in ipairs({ "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "UNIT_AURA", "WAR_MODE_STATUS_UPDATE", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_ENTERING_WORLD", "QUEST_DATA_LOAD_RESULT" }) do events:RegisterEvent(event) end
+-- Player-only unit events are filtered by the client, not per group member in Lua.
+local unitEvents = { UNIT_AURA = true, PLAYER_XP_UPDATE = true }
+local unitFiltered = events.RegisterUnitEvent ~= nil
+for _, event in ipairs({ "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "UNIT_AURA", "WAR_MODE_STATUS_UPDATE", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_ENTERING_WORLD", "QUEST_DATA_LOAD_RESULT" }) do
+    if unitEvents[event] and unitFiltered then events:RegisterUnitEvent(event, "player") else events:RegisterEvent(event) end
+end
 local queued = false
+local questContents = { quests = true, delvequests = true }
 events:SetScript("OnEvent", function(_, event, unit, success)
-    if (event == "UNIT_AURA" or event == "PLAYER_XP_UPDATE") and unit ~= "player" then return end
+    if unitEvents[event] and not unitFiltered and unit ~= "player" then return end
     if event == "QUEST_DATA_LOAD_RESULT" and success ~= false then pending[unit] = nil end
+    if addon.QueuePanelRefresh then return addon.QueuePanelRefresh(questContents) end
     local function Refresh()
         queued = false
-        if addon.RefreshPanels then addon.RefreshPanels() end
+        if addon.RefreshPanels then addon.RefreshPanels(questContents) end
     end
     if not C_Timer then return Refresh() end
     if not queued then queued = true; C_Timer.After(0.1, Refresh) end

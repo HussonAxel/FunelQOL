@@ -47,7 +47,7 @@ rows = addon.WithQuestXPSummary({ { delveQuestID = 2, delveQuestActive = true, t
 assert(rows[1].valueText == "2650" and rows[3].tooltipLines[1]:find("1400", 1, true))
 loaded[2] = false
 rows = Rows()
-assert(rows[1].name == "XP à rendre : ≥ 1250")
+assert(rows[1].name == "XP à rendre : >= 1250")
 tooltip = table.concat(rows[1].tooltipLines, "\n")
 assert(tooltip:find("partiel", 1, true) and not tooltip:find("couvrent", 1, true))
 Rows(); assert(requests[2] == 1, "Unloaded reward requests are not coalesced")
@@ -73,4 +73,19 @@ disabled = true
 assert(Rows()[1].name == "Gain d’XP désactivé")
 disabled, maximum = false, 0
 assert(#Rows() == 1, "Level cap shows an XP projection")
+do
+    local unitFrame
+    local oldCreate = CreateFrame
+    CreateFrame = function()
+        unitFrame = { events = {}, units = {} }
+        function unitFrame:RegisterEvent(event) self.events[event] = true end
+        function unitFrame:RegisterUnitEvent(event, unit) self.units[event] = unit end
+        function unitFrame:SetScript(_, fn) self.onEvent = fn end
+        return unitFrame
+    end
+    assert(loadfile("QuestXP.lua"))("FunelQOL", { RefreshPanels = function() end })
+    CreateFrame = oldCreate
+    assert(unitFrame.units.UNIT_AURA == "player" and unitFrame.units.PLAYER_XP_UPDATE == "player" and not unitFrame.events.UNIT_AURA,
+        "Player aura/XP events are not filtered by the client")
+end
 print("PASS: journal-wide ready/accepted XP, native bonus totals without double counting, weighted percentages, partial rewards, refreshes, level-up, abandonment/turn-in and XP cap/lock.")

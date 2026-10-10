@@ -111,9 +111,11 @@ local function DiscoverDelves()
                 local story = Story(poi, definition)
                 local reference = Rating(definition, story)
                 local map = C_Map.GetMapInfo(mapID)
+                local x, y
+                if poi.position and poi.position.GetXY then x, y = poi.position:GetXY() end
                 local existing = found[key]
                 if not existing then
-                    existing = { name = Plain(poi.name), delveID = poiID, mapID = mapID, definition = definition,
+                    existing = { name = Plain(poi.name), delveID = poiID, mapID = mapID, x = x, y = y, definition = definition,
                         zone = definition and definition.zone or map and map.name, description = poi.description,
                         bountiful = abundant and true or nil, iconAtlas = atlas,
                         story = story, reference = reference }
@@ -126,6 +128,7 @@ local function DiscoverDelves()
                     if existing.bountiful == nil and standard then existing.bountiful = false end
                     if poi.isPrimaryMapForPOI then
                         existing.delveID, existing.mapID = poiID, mapID
+                        if x then existing.x, existing.y = x, y end
                         existing.zone = map and map.name or existing.zone
                     end
                     if not existing.story and story then existing.story, existing.reference = story, reference
@@ -181,7 +184,7 @@ function addon.GetDelveRows(settings)
         if not settings.delvesSections or not settings.delvesSections["delves_" .. key] then
             local reference = delve.reference
             rows[#rows + 1] = { name = delve.name, questTitle = delve.name, isQuestHeader = true,
-                delveID = delve.delveID, mapID = delve.mapID, questZone = delve.zone, delveStory = delve.story,
+                delveID = delve.delveID, mapID = delve.mapID, waypointMapID = delve.mapID, waypointX = delve.x, waypointY = delve.y, questZone = delve.zone, delveStory = delve.story,
                 delveTime = reference and reference[2], delveGrade = reference and reference[3] or "?",
                 description = delve.description, iconAtlas = delve.iconAtlas, icon = "Interface\\Icons\\INV_Misc_Map_01",
                 bountiful = delve.bountiful, borderColor = delve.bountiful and { 1, 0.75, 0.2, 1 } or nil,

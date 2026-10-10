@@ -3,7 +3,7 @@ local fr = GetLocale() == "frFR"
 local text = addon.panelText
 text.vault = fr and "Chambre forte" or "Great Vault"
 text.renown = fr and "Renoms · Midnight" or "Renown · Midnight"
-text.vaultHint = fr and "Choisis les catégories : chacune affiche tous ses emplacements de la chambre forte. Survole une ligne pour les détails." or "Choose categories: each displays all its Great Vault slots. Hover a row for details."
+text.vaultHint = fr and "Choisis les catégories : chacune affiche ses emplacements de la chambre forte (objet et niveau une fois débloqué, progression sinon). Survole un emplacement pour les détails." or "Choose categories: each shows its Great Vault slots (item and level once unlocked, progress otherwise). Hover a slot for details."
 text.renownHint = fr and "Choisis les renoms de Midnight à afficher. Toutes les factions disponibles sont sélectionnées au départ ; survole pour la progression détaillée." or "Choose Midnight renown factions. Available factions are initially selected; hover for detailed progress."
 local green, cyan, gray, gold = { 0.3, 1, 0.3 }, { 0.15, 0.8, 1 }, { 0.65, 0.65, 0.65 }, { 1, 0.82, 0 }
 local midnight = LE_EXPANSION_MIDNIGHT or 11
@@ -42,24 +42,21 @@ function addon.GetVaultCatalog()
     local rows, groups = {}, {}
     if not C_WeeklyRewards or not C_WeeklyRewards.GetActivities then return rows end
     local kinds = Enum and Enum.WeeklyRewardChestThresholdType or {}
-    local names = {
-        { kinds.Raid, fr and "Raids" or "Raids" },
-        { kinds.Activities, fr and "Donjons" or "Dungeons" },
-        { kinds.World, fr and "Gouffres et monde" or "Delves and world" },
-        { kinds.RankedPvP, fr and "JcJ classé" or "Rated PvP" },
-    }
+    local names = {}
+    if kinds.Raid then names[kinds.Raid] = "Raids" end
+    if kinds.Activities then names[kinds.Activities] = fr and "Donjons" or "Dungeons" end
+    if kinds.World then names[kinds.World] = fr and "Gouffres et monde" or "Delves and world" end
+    if kinds.RankedPvP then names[kinds.RankedPvP] = fr and "JcJ classé" or "Rated PvP" end
     local activities = C_WeeklyRewards.GetActivities() or {}
     local hasWorld = false
     for _, activity in ipairs(activities) do if kinds.World and activity.type == kinds.World then hasWorld = true end end
     for _, activity in ipairs(activities) do
-        -- Match Blizzard's conditional world/PvP row and ignore concession rewards.
-        if activity.threshold and activity.threshold > 0 and activity.index and activity.type
-            and not (hasWorld and kinds.RankedPvP and activity.type == kinds.RankedPvP) then
+        -- Match Blizzard's conditional world/PvP row; concession and bonus rewards are not slots.
+        if activity.threshold and activity.threshold > 0 and activity.index and names[activity.type]
+            and not (hasWorld and activity.type == kinds.RankedPvP) then
             local group = groups[activity.type]
             if not group then
-                local name = (fr and "Activité " or "Activity ") .. activity.type
-                for _, kind in ipairs(names) do if kind[1] == activity.type then name = kind[2]; break end end
-                group = { id = activity.type, name = name, activities = {} }
+                group = { id = activity.type, name = names[activity.type], activities = {} }
                 groups[activity.type] = group
                 rows[#rows + 1] = group
             end
@@ -71,42 +68,66 @@ function addon.GetVaultCatalog()
     return rows
 end
 
+local chestIcon = "Interface\\Icons\\INV_Box_01"
+local ItemInfoInstant = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
+
+local function ItemIcon(link)
+    local icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(link)
+    if not icon and ItemInfoInstant then icon = select(5, ItemInfoInstant(link)) end
+    return icon
+end
+
+-- One row per category: its title, unlocked slots, then one framed tile per slot
+-- (reward icon and item level once unlocked, desaturated chest and progress before).
 function addon.GetVaultRows(settings)
     local catalog, rows, lookup, seen = addon.GetVaultCatalog(), {}, {}, {}
     for _, category in ipairs(catalog) do lookup[category.id] = category end
     local claim = C_WeeklyRewards and C_WeeklyRewards.HasAvailableRewards and C_WeeklyRewards.HasAvailableRewards()
     if claim then
-        rows[#rows + 1] = { name = fr and "Récompense" or "Reward", valueText = fr and "À récupérer" or "Claim",
-            icon = "Interface\\Icons\\INV_Misc_TreasureChest01", labelColor = gold, fitValue = true,
+        rows[#rows + 1] = { name = fr and "Récompense" or "Reward", valueText = fr and "À récupérer" or "Claim", vaultClaim = true,
+            icon = chestIcon, labelColor = gold, fitValue = true,
             tooltipLines = { fr and "Une récompense de la chambre forte est disponible." or "A Great Vault reward is available." } }
     end
     local currentPeriod = not C_WeeklyRewards or not C_WeeklyRewards.AreRewardsForCurrentRewardPeriod
         or C_WeeklyRewards.AreRewardsForCurrentRewardPeriod()
+    local previousNote = claim and not currentPeriod
+        and (fr and "Récompenses de la période précédente affichées par Blizzard." or "Blizzard is displaying rewards from the previous period.")
     for _, id in ipairs(addon.GetContentSelection(settings, catalog)) do
         local category = lookup[id]
         if category and not seen[id] then
             seen[id] = true
+            local tiles, unlockedCount = {}, 0
             for _, activity in ipairs(category.activities) do
                 local progress = math.max(0, activity.progress or 0)
                 local unlocked = progress >= activity.threshold
                 local link, level
-                if unlocked and activity.id and C_WeeklyRewards.GetExampleRewardItemHyperlinks then
-                    link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(activity.id)
-                    if link and C_Item and C_Item.GetDetailedItemLevelInfo then level = C_Item.GetDetailedItemLevelInfo(link) end
+                if unlocked then
+                    unlockedCount = unlockedCount + 1
+                    if activity.id and C_WeeklyRewards.GetExampleRewardItemHyperlinks then
+                        link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(activity.id)
+                        if link and C_Item and C_Item.GetDetailedItemLevelInfo then level = C_Item.GetDetailedItemLevelInfo(link) end
+                    end
                 end
-                local count = math.min(progress, activity.threshold) .. " / " .. activity.threshold
                 local lines = { category.name .. " · " .. (fr and "Emplacement " or "Slot ") .. activity.index,
                     (fr and "Progression : " or "Progress: ") .. progress .. " / " .. activity.threshold,
                     unlocked and (fr and "Emplacement débloqué" or "Slot unlocked") or (fr and "Emplacement verrouillé" or "Slot locked") }
                 if level then lines[#lines + 1] = (fr and "Niveau d’objet : " or "Item level: ") .. level end
-                if link then lines[#lines + 1] = link end
-                if claim and not currentPeriod then lines[#lines + 1] = fr and "Récompenses de la période précédente affichées par Blizzard." or "Blizzard is displaying rewards from the previous period." end
-                rows[#rows + 1] = { name = category.name .. " · " .. activity.index,
-                    valueText = unlocked and (level and tostring(level) or "OK") or count,
-                    labelColor = unlocked and green or cyan, icon = "Interface\\Icons\\INV_Misc_TreasureChest01",
-                    gaugeValue = math.min(progress, activity.threshold), gaugeMaximum = activity.threshold,
-                    vaultActivityID = activity.id, tooltipLines = lines, fitValue = true }
+                if previousNote then lines[#lines + 1] = previousNote end
+                local caption
+                if unlocked then caption = level and tostring(level) or nil
+                else caption = math.min(progress, activity.threshold) .. "/" .. activity.threshold end
+                tiles[#tiles + 1] = { vaultActivityID = activity.id, link = link, tooltipLines = lines, locked = not unlocked,
+                    progress = math.min(progress, activity.threshold) / activity.threshold,
+                    icon = link and ItemIcon(link) or chestIcon,
+                    caption = caption,
+                    captionColor = unlocked and green or nil }
             end
+            local total = #category.activities
+            rows[#rows + 1] = { id = id, name = category.name, valueText = unlockedCount .. " / " .. total,
+                labelColor = unlockedCount == total and green or nil, rewards = tiles, styledRewards = true, wideRewards = true,
+                gaugeValue = unlockedCount, gaugeMaximum = total, vaultActivityID = category.activities[1].id,
+                tooltipLines = { category.name, (fr and "Emplacements débloqués : " or "Unlocked slots: ") .. unlockedCount .. " / " .. total, previousNote },
+                fitValue = true }
         end
     end
     if #rows == 0 then rows[1] = { name = #catalog == 0 and (fr and "Chambre forte indisponible" or "Great Vault unavailable") or text.empty, labelColor = gray } end

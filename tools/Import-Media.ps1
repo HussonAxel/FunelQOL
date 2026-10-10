@@ -52,6 +52,34 @@ Copy-Item -LiteralPath $licensePath -Destination (Join-Path $destinationPath 'LI
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destinationPath 'manifest.json') -Encoding UTF8
 Write-Output "Imported and verified $($files.Count) EllesmereUI Pixels assets."
 
+# Expressway (Typodermic, commercial) is the addon font: copied for personal use only.
+$fontSources = @(
+    (Join-Path $sourcePath 'media\fonts\Expressway.TTF'),
+    (Join-Path $AddOnsPath 'NorthernSkyRaidTools\Media\Fonts\Expressway.TTF')
+)
+$fontSource = $fontSources | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+if (-not $fontSource) { throw "Missing Expressway font: $($fontSources -join ', ')" }
+$fontDestination = Join-Path $addonPath 'Media\Fonts\Expressway.ttf'
+Copy-Item -LiteralPath $fontSource -Destination $fontDestination
+if ((Get-FileHash -LiteralPath $fontDestination -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $fontSource -Algorithm SHA256).Hash) {
+    throw 'Copy verification failed: Expressway.ttf'
+}
+Write-Output "Imported and verified Expressway from $fontSource."
+
+# "Expressway Bold" is the Extra Bold weight (800), one step above Expressway.TTF (700).
+$boldSource = Join-Path $sourcePath 'media\fonts\Expressway Bold.ttf'
+if (Test-Path -LiteralPath $boldSource -PathType Leaf) {
+    $boldDestination = Join-Path $addonPath 'Media\Fonts\Expressway-Bold.ttf'
+    Copy-Item -LiteralPath $boldSource -Destination $boldDestination
+    if ((Get-FileHash -LiteralPath $boldDestination -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $boldSource -Algorithm SHA256).Hash) {
+        throw 'Copy verification failed: Expressway-Bold.ttf'
+    }
+    Write-Output 'Imported and verified Expressway Extra Bold.'
+}
+
 if (Test-Path -LiteralPath (Join-Path $AddOnsPath 'AyijeUI') -PathType Container) {
     & (Join-Path $PSScriptRoot 'Import-AyijeMedia.ps1') -AddOnsPath $AddOnsPath
+}
+if (Test-Path -LiteralPath (Join-Path $AddOnsPath 'RefineUI') -PathType Container) {
+    & (Join-Path $PSScriptRoot 'Import-RefineMedia.ps1') -AddOnsPath $AddOnsPath
 }

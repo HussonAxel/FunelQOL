@@ -3,6 +3,7 @@ local fr = GetLocale() == "frFR"
 
 addon.panelText = {
     panel = fr and "PANNEAU" or "PANEL",
+    addTracker = fr and "Ajouter un tracker" or "Add tracker",
     preview = fr and "Aperçu" or "Preview",
     enabled = fr and "Afficher le panneau" or "Show panel",
     collapsed = fr and "Replier le panneau" or "Collapse panel",

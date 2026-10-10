@@ -6,11 +6,12 @@ text.raidSetsFollowInstance = fr and "Adapter au raid visité" or "Follow curren
 text.raidSetsHint = text.raidSetsHint .. (fr and " En raid, adaptation automatique si activée ; » indique la difficulté actuelle." or " In raids, follows the instance when enabled; » marks the current difficulty.")
 
 -- Client transmog-set IDs, in LFR / Normal / Heroic / Mythic order.
--- Verified against the installed Transmog Upgrade Master v1.5.27 data.
+-- Midnight client set IDs; appearance transitions occur at upgrade rank 6.
 local seasons = {
-    [17] = { number = 1, bases = { 5465, 5445, 5433, 5453, 5449, 5417, 5457, 5437, 5461, 5441, 5425, 5421, 5429 } },
-    [18] = { number = 2, bases = { 5885, 5865, 5853, 5873, 5869, 5837, 5877, 5857, 5881, 5861, 5845, 5841, 5849 } },
+    [17] = { number = 1, catalystBonusID=13577, appearanceRank=6, bases = { 5465, 5445, 5433, 5453, 5449, 5417, 5457, 5437, 5461, 5441, 5425, 5421, 5429 } },
+    [18] = { number = 2, catalystBonusID=13662, appearanceRank=6, bases = { 5885, 5865, 5853, 5873, 5869, 5837, 5877, 5857, 5881, 5861, 5845, 5841, 5849 } },
 }
+function addon.GetRaidSetSeasonRules() return seasons end
 -- Game-map IDs verified against the installed BigWigs raid modules.
 local raidSeasons = { [2912] = 17, [2913] = 17, [2939] = 17, [3004] = 18 }
 local difficulties = { fr and "Outil Raids" or "Raid Finder", fr and "Normal" or "Normal", fr and "Héroïque" or "Heroic", fr and "Mythique" or "Mythic" }
@@ -215,9 +216,9 @@ function addon.GetRaidSetRows(settings, raidContext)
             if total == 0 then unknown = true end
             if unknown then lines[#lines + 1] = fr and "Collection en cours de chargement ; le total sera affiché quand les données seront disponibles." or "Collection loading; the total will appear once data is available." end
             local complete = not unknown and collected == total
-            if actionStatus == "unavailable" then lines[#lines + 1] = fr and "Active Transmog Upgrade Master pour analyser les améliorations et la catalyse." or "Enable Transmog Upgrade Master to analyze upgrades and catalyst options."
+            if actionStatus == "unavailable" then lines[#lines + 1] = fr and "Analyse des objets indisponible : API Blizzard manquante." or "Item analysis unavailable: missing Blizzard API."
             elseif actionStatus == "loading" or actionPending then lines[#lines + 1] = fr and "Analyse des objets en cours de chargement…" or "Item analysis loading…"
-            elseif actionStatus == "partial" then lines[#lines + 1] = fr and "Analyse Transmog Upgrade Master incomplète." or "Transmog Upgrade Master analysis incomplete." end
+            elseif actionStatus == "partial" then lines[#lines + 1] = fr and "Analyse de certains objets indisponible pour le moment." or "Some items could not be analyzed yet." end
             lines[#lines + 1] = " "
             if next(actionModes) then lines[#lines + 1] = "|cffaaaaaa" .. (fr and "Objets équipés / sacs · Charges et monnaies non vérifiées." or "Equipped / bags · Charges and currencies not checked.") .. "|r" end
             lines[#lines + 1] = fr and "Clic : prévisualiser l'ensemble" or "Click: preview the set"

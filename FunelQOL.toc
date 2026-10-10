@@ -2,9 +2,9 @@
 ## Title: FunelQOL
 ## Notes: A personal quality-of-life addon for World of Warcraft Retail.
 ## Author: Axel Husson
-## Version: 0.14.4
-## Dependencies: Blizzard_EditMode
-## OptionalDeps: TransmogUpgradeMaster
+## Version: 0.18.13
+## Dependencies: Blizzard_EditMode, Blizzard_MapCanvas
+## OptionalDeps: RefineUI
 ## SavedVariables: FunelQOLDB
 ## SavedVariablesPerCharacter: FunelQOLCharDB
 
@@ -22,6 +22,14 @@ DelveRatings.lua
 DelveQuestContent.lua
 DelveContent.lua
 ProgressContent.lua
+WeeklyContent.lua
+RareData.lua
+RareContent.lua
+RareMapPins.lua
+RareMapPins.xml
+RowActions.lua
+TeleportData.lua
+TeleportContent.lua
 RaidAppearanceActions.lua
 RaidSetContent.lua
 RaidAchievementData.lua
@@ -29,4 +37,6 @@ RaidAchievementContent.lua
 RaidCollection.lua
 ContentEditor.lua
 Panels.lua
+Performance.lua
+RotationButton.lua
 Core.lua

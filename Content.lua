@@ -9,17 +9,19 @@ text.money = fr and "Or" or "Money"
 text.crests = fr and "Écus · Champion / Héros / Mythe" or "Crests · Champion / Hero / Myth"
 text.label = fr and "Libellé" or "Label"
 text.value = fr and "Valeur" or "Value"
-text.hint = fr and "Choisis les lignes ; ↑ / ↓ changent leur ordre. Modifications enregistrées immédiatement." or "Choose rows; ↑ / ↓ change their order. Changes are saved immediately."
+text.hint = fr and "Choisis les lignes ; les flèches changent leur ordre. Modifications enregistrées immédiatement." or "Choose rows; the arrows change their order. Changes are saved immediately."
 addon.contentTypes = {
     { text = text.preview, value = "preview" },
     { text = fr and "Monnaies" or "Currencies", value = "currencies" },
     { text = fr and "Métiers" or "Professions", value = "professions" },
-    { text = fr and "Talents sélectionnés" or "Selected talents", value = "talents" },
     { text = fr and "Quêtes suivies" or "Tracked quests", value = "quests" },
     { text = "Delves", value = "delves" },
     { text = fr and "Quêtes de gouffres" or "Delve quests", value = "delvequests" },
     { text = fr and "Chambre forte" or "Great Vault", value = "vault" },
     { text = fr and "Renoms · Midnight" or "Renown · Midnight", value = "renown" },
+    { text = fr and "Hebdo" or "Weekly", value = "weekly" },
+    { text = "Rares", value = "rares" },
+    { text = fr and "Téléportations" or "Teleports", value = "teleports" },
     { text = fr and "Sets de raid" or "Raid sets", value = "raidsets" },
     { text = fr and "Collection de raid" or "Raid collection", value = "raidcollection" },
     { text = fr and "Menu personnalisé" or "Custom menu", value = "custom" },
@@ -34,6 +36,8 @@ function addon.GetContentCatalog(kind)
     if kind == "raidsets" then return addon.GetRaidSetCatalog() end
     if kind == "vault" then return addon.GetVaultCatalog() end
     if kind == "renown" then return addon.GetRenownCatalog() end
+    if kind == "weekly" then return addon.GetWeeklyCatalog() end
+    if kind == "rares" or kind == "teleports" then return {} end
     if kind == "quests" then return addon.GetQuestCatalog() end
     local rows = {}
     if kind == "currencies" then
@@ -58,29 +62,8 @@ function addon.GetContentCatalog(kind)
             if index then
                 local name, icon, rank, maximum, _, _, skillLine, _, _, _, expansionName = GetProfessionInfo(index)
                 if name and skillLine then
-                    rows[#rows + 1] = { id = skillLine, name = expansionName or name, icon = icon,
+                    rows[#rows + 1] = { id = skillLine, professionSkillLine = skillLine, name = expansionName or name, icon = icon,
                         value = rank, maximum = maximum, valueText = rank .. " / " .. maximum }
-                end
-            end
-        end
-    elseif kind == "talents" then
-        local configID = C_ClassTalents.GetActiveConfigID()
-        local config = configID and C_Traits.GetConfigInfo(configID)
-        local seen = {}
-        for _, treeID in ipairs(config and config.treeIDs or {}) do
-            for _, nodeID in ipairs(C_Traits.GetTreeNodes(treeID) or {}) do
-                local node = C_Traits.GetNodeInfo(configID, nodeID)
-                if node and node.activeEntry and node.activeEntry.rank > 0 and node.subTreeActive ~= false then
-                    local entry = C_Traits.GetEntryInfo(configID, node.activeEntry.entryID)
-                    local definition = entry and entry.definitionID and C_Traits.GetDefinitionInfo(entry.definitionID)
-                    local spellID = definition and definition.spellID
-                    local spell = spellID and C_Spell.GetSpellInfo(spellID)
-                    if spell and not seen[spellID] then
-                        rows[#rows + 1] = { id = spellID, spellID = spellID, name = definition.overrideName or spell.name,
-                            icon = definition.overrideIcon or spell.iconID, value = node.activeEntry.rank,
-                            maximum = entry.maxRanks, valueText = node.activeEntry.rank .. " / " .. entry.maxRanks }
-                        seen[spellID] = true
-                    end
                 end
             end
         end
@@ -94,7 +77,7 @@ function addon.GetContentSelection(settings, catalog)
     if type(list) ~= "table" then
         list = {}
         if #catalog > 0 then
-            local count = (settings.content == "raidsets" or settings.content == "renown" or settings.content == "vault") and 8 or 3
+            local count = (settings.content == "raidsets" or settings.content == "renown" or settings.content == "vault" or settings.content == "weekly") and 8 or 3
             for index = 1, 8 do list[index] = index <= count and catalog[index] and catalog[index].id or 0 end
             settings.selections[settings.content] = list
         end
@@ -167,6 +150,9 @@ function addon.GetPanelRows(settings)
     if settings.content == "raidsets" then return addon.GetRaidSetRows(settings) end
     if settings.content == "delvequests" then return addon.WithQuestXPSummary(addon.GetDelveQuestRows(settings), settings) end
     if settings.content == "vault" then return addon.GetVaultRows(settings) end
+    if settings.content == "weekly" then return addon.GetWeeklyRows(settings) end
+    if settings.content == "rares" then return addon.GetRareRows() end
+    if settings.content == "teleports" then return addon.GetTeleportRows(settings) end
     if settings.content == "delves" then return addon.GetDelveRows(settings) end
     if settings.content == "preview" then return addon.GetPreviewRows(settings.rowCount) end
     if settings.content == "quests" then return addon.WithQuestXPSummary(addon.GetQuestRows(settings), settings) end

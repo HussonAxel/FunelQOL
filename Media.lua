@@ -5,7 +5,8 @@ local addonName, addon = ...
 local root = "Interface\\AddOns\\" .. addonName .. "\\Media\\Ellesmere\\"
 
 addon.media = {
-    menuFont = "Interface\\AddOns\\" .. addonName .. "\\Media\\Fonts\\NotoSans-Bold.ttf",
+    font = "Interface\\AddOns\\" .. addonName .. "\\Media\\Fonts\\Expressway-Bold.ttf",
+    regularFont = "Interface\\AddOns\\" .. addonName .. "\\Media\\Fonts\\Expressway.ttf",
     textures = {
         pixelsFill = root .. "textures\\pixels-fill.tga",
         pixelsDark = root .. "textures\\pixels-dark.tga",
@@ -34,7 +35,46 @@ addon.media = {
     },
 }
 
-local ayijeRoot = "Interface\\AddOns\\" .. addonName .. "\\Media\\AyijeUI\\"
+-- Shared bar texture (d1); tools/Sync-BarTexture.ps1 copies it into RefineUI.
+addon.media.statusbar = "Interface\\AddOns\\" .. addonName .. "\\Media\\Bars\\d1.tga"
+
+local refineRoot = "Interface\\AddOns\\" .. addonName .. "\\Media\\RefineUI\\"
+addon.media.refine = {
+    border = refineRoot .. "Textures\\RefineBorder.blp",
+    fill = refineRoot .. "Textures\\SmoothV2.tga",
+    font = refineRoot .. "Fonts\\ITCAvantGardeStd-Demi.ttf",
+    boldFont = refineRoot .. "Fonts\\ITCAvantGardeStd-Bold.ttf",
+}
+
+-- The client loads a font file on first use; text laid out before that stays blank
+-- until it changes. Font objects created at load time preload Expressway.
+if CreateFont then
+    for _, flags in ipairs({ "", "OUTLINE" }) do
+        CreateFont("FunelQOLFont" .. flags):SetFont(addon.media.font, 12, flags)
+        CreateFont("FunelQOLRefineFont" .. flags):SetFont(addon.media.refine.font, 12, flags)
+        CreateFont("FunelQOLRefineBoldFont" .. flags):SetFont(addon.media.refine.boldFont, 12, flags)
+    end
+end
+
+-- Expressway is the default; panel styles can request their own local face.
+-- Keep the template size, with Expressway/Blizzard fallbacks for missing files.
+function addon.SetFont(fontString, size, flags, font)
+    font = font or addon.media.font
+    local currentFont, currentSize, currentFlags = fontString:GetFont()
+    size, flags = size or currentSize or 12, flags or ""
+    if currentFont == font and currentSize and math.abs(currentSize - size) < 0.05 and (currentFlags or "") == flags then return end
+    fontString:SetFont(font, size, flags)
+    -- FontStrings need not return a success boolean: inspect the applied face.
+    if fontString:GetFont() ~= font then
+        fontString:SetFont(addon.media.regularFont, size, flags)
+        if fontString:GetFont() ~= addon.media.regularFont then fontString:SetFont(STANDARD_TEXT_FONT, size, flags) end
+    end
+    -- Text set before the font change is laid out again with the new font.
+    local text = fontString:GetText()
+    if text and text ~= "" then fontString:SetText(""); fontString:SetText(text) end
+end
+
+local ayijeRoot ="Interface\\AddOns\\" .. addonName .. "\\Media\\AyijeUI\\"
 
 addon.media.ayije = {
     statusbars = {

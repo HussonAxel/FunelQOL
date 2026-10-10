@@ -14,3 +14,12 @@ node_modules/
 # Locally imported third-party media (not licensed for public redistribution)
 /Media/Ellesmere/
 /Media/AyijeUI/
+/Media/RefineUI/
+/Media/Fonts/Expressway*.ttf
+/Media/Fonts/Expressway-Bold.ttf
+
+# Locally generated rare data (RareScanner, All Rights Reserved: personal use only)
+/RareData.lua
+
+# Locally generated teleport data (TeleportMenu, All Rights Reserved: personal use only)
+/TeleportData.lua

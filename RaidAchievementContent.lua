@@ -40,7 +40,7 @@ function addon.GetRaidAchievementRows(context)
                     if finished then done = done + 1 end
                     if criteria then
                         local progress = quantityText and quantityText ~= "" and quantityText or required and required > 1 and tostring(quantity or 0) .. " / " .. required or nil
-                        lines[#lines+1] = (finished and "|cff66ff66✓ " or "|cffffffff• ") .. criteria .. (progress and " — " .. progress or "") .. "|r"
+                        lines[#lines+1] = (finished and "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t |cff66ff66" or "|cffffffff• ") .. criteria .. (progress and " — " .. progress or "") .. "|r"
                     end
                 end
                 local maximum = record.minimum and record.minimum > 0 and record.minimum or count

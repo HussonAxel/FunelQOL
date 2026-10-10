@@ -1,0 +1,54 @@
+TEST tests\delve-leveling.lua
+PASS: alt XP quests, objective progress, faction variants, Haranir masters/relics, abandonment and weekly reset.
+TEST tests\performance-data.lua
+PERF rare data: startup=1598.4 KiB, loaded=3974.0 KiB, zones=333, npcs=3400
+TEST tests\performance.lua
+PERF event burst: timers=1, quests=1, unrelated=0
+PERF disabled quest panel: renders=0
+PERF idle 600 frames: callbacks=0
+PERF timer tick: quests=1, unrelated=0
+PERF mock 1000 full refreshes: 217.00 ms; new frames=0
+PASS: performance scenarios (mock UI; timings are not client CPU/FPS measurements).
+TEST tests\profiling.lua
+PASS: on-demand profiling, native metrics/allocations, snapshots/history limit, combat guard and unavailable API fallback.
+TEST tests\quest-xp.lua
+PASS: journal-wide ready/accepted XP, native bonus totals without double counting, weighted percentages, partial rewards, refreshes, level-up, abandonment/turn-in and XP cap/lock.
+TEST tests\raid-achievements.lua
+PASS: raid achievement mapping, account completion, criteria/rewards, progress minimum, availability exclusions, missing data and native click combat guard.
+TEST tests\raid-collection-integration.lua
+PASS: real raid collection/content/class-set integration across Normal, Heroic, Mythic and Raid Finder without nil selection keys.
+TEST tests\raid-collection.lua
+PASS: raid collectibles, current difficulty links, class sets, shared appearances, category/collected filters, boss folding, last raid, async loading, visible journal deferral and state restoration on success/error.
+TEST tests\smoke.lua
+PASS: initialization, preview controls, independent titles, collapse, visibility, layout switching/copy/rename/delete, and combat guard.
+PASS: centered Pixels/Ayije borders, corner clearance, fill tint, and pixel alignment at 72 style/resolution/UI/panel-scale combinations.
+PASS: live currencies, seasonal caps, money events, sparse professions, retired talent content, custom rows, currency checkboxes, editor selection/reorder/remove/reuse, layout isolation and deep copies.
+PASS: tracked quests and world quests, deduplication, live counts/percentages, objective wrapping, ready/loading/empty states, automatic limits, manual selection/order/retracking, layout copy and combat/edit click guard.
+PASS: daily/weekly/important/campaign/recurring/world labels, partial objective progress, metadata tooltips, category colors across all styles, hover restoration, settings and row reuse.
+PASS: all watched quests, campaign classification fallback, hand-in/auto-completion/waypoints, optional objective text, money requirements, live timers and bounded mouse-wheel scrolling.
+PASS: one group per quest, full-width larger titles, white/green objective hierarchy, compact metadata, retained timer values, thin progress bars, all border styles and presentation switching.
+PASS: money remains single-line and within its reserved bounds, zero-offset coins, all border styles, panel widths, font sizes and changing denominations.
+PASS: continuous tracker surface, campaign/quest/world/event sections, blue zones, quest icons and completion hierarchy, live deduplicated map events, map click guards, folding/edit guards, saved layout isolation, all themes and renderer switching.
+PASS: all 44 grades across 12 delves, localized names and criteria, standard/bountiful/unknown icons, primary-map deduplication, unknown/hidden/conflicting stories, widget and rotation refresh, cache isolation, independent delve/quest panels and settings, all themes/widths/fonts/scales, automatic editor, folding/layout copy, scrolling and combat guards.
+PASS: compact data trackers, shared body and separators, automatic/custom headers, rarity colors, icons beside values, coin reuse, collapse and renderer switching across themes, widths, fonts and scales.
+PASS: compact quest shell, centered header, value-side quest icons, wrapped objectives and metadata, full watched list, section separators, scrolling, collapse/folding and legacy presentation across themes, widths, fonts and scales.
+PASS: vault live slots/thresholds/reward levels, previous-period claim status, ordered category filtering, missing APIs/item cache, Midnight-only renown, max/locked factions, live events, editor/layout isolation, compact bounds and tooltips.
+PASS: faction-specific Blizzard emblems, validated atlas fallback, uncropped larger logos, compact spacing across themes/widths/fonts/scales and texture reset on row reuse.
+PASS: fixed right-side renown logo column, aligned value/label columns, uniform value fonts, narrow panel bounds and currency renderer reuse.
+PASS: ten verified Delver's Call quests, per-character accepted/ready/turned-in/failed/unknown states, localized title loading, quest events and abandonment, completed filter/layout copy, all-row compact rendering, guarded clicks and existing Delves metadata.
+PASS: current-season raid sets for all classes and four difficulties, account/shared appearances, duplicate-source and robe grouping, live collection updates, selection ordering, loading/unsupported states and compact rendering in all styles.
+PASS: automatic current/historical raid sets, localized raid labels and difficulty variants, class/PvP isolation, legacy sizes, cached metadata, current difficulty visibility, season fallback on exit, follow toggle, custom titles and zone/difficulty events.
+PASS: persistent panel edge anchors, open/collapsed stacking, all four sides and three alignments at different scales, spacing/cross-offset geometry, nine screen anchors, cycle protection, detach/drag without jumps and layout-copy isolation.
+PASS: Pixels default style with one-time migration, unlimited panels, Edit Mode registration, anchor lists and cycles across extra panels, numbered commands, removal and reuse.
+PASS: TUM-backed owned-item upgrade/catalyst/combined routes, exact target visuals, item links/locations/breakpoints, shared/PvP exclusion, inventory caching/events/warmup, uncollected-only indicators, compact bounds, full-set dressing-room preview and combat/Edit Mode guards.
+PASS: grouped Champion/Hero/Myth crests, spendable seasonal IDs, editor choice, earned cap tooltip, live updates, narrow icon bounds and loading/unsupported season handling.
+PASS: one-time 80 percent saved-background migration, subsequent opacity edits, subtle compact renown next-level/max/locked gauges, styles/widths, gauge toggle, vault/raid/profession progress and balance-only exclusions.
+PASS: visual categorized two-column currency selection, native icons/check states, saved selections, undiscovered zero balances, search, eight-row cap, reorder/removal/clear, editor reuse and no full-catalog scans during tracking.
+PASS: right-click Blizzard renown summary, exact faction, load-on-demand and modern loader fallback, repeated-click open behavior, left-click isolation, combat/Edit Mode guards and unavailable UI handling.
+PASS: Retail Adventure Guide Journeys renown routing, native View Renown path, load-on-demand, exact faction/tab, repeat clicks, combat guard, modern loader fallback and unavailable UI handling.
+PASS: weekly tracker prey, hunts, crests, Gilded Stash widget/loot, Dundun gossip, coffer keys and weekly reset.
+PASS: rare tracker zone lookup, faction filter, collectibles, kill status, title and waypoint.
+PASS: right-click waypoints, quest tracking, professions, knowledge, currencies and vault.
+PASS: teleport categories, ownership, faction filter, cooldowns, single grid and casting.
+PASS: XP summary rendered in compact delve and sectioned quest trackers, hover/click and unwatched journal totals.
+PASS: raid collection content menu, contextual title, compact rows, height/scroll, native reward tooltip, boss fold and category editor.

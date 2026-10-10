@@ -159,7 +159,7 @@ function addon.GetRaidCollectionRows(settings)
         if collected and not options.showCollected then return end
         if not buckets[key] then buckets[key] = {title=title, entries={}}; bucketOrder[#bucketOrder+1] = key end
         entry.labelColor = unknown and {.65,.65,.65} or collected and {.3,1,.3} or colors[entry.raidCollectionKind]
-        entry.valueText = unknown and "…" or collected and "✓" or entry.raidAchievementProgress or labels[entry.raidCollectionKind]
+        entry.valueText = unknown and "…" or collected and "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t" or entry.raidAchievementProgress or labels[entry.raidCollectionKind]
         entry.fitValue = true
         buckets[key].entries[#buckets[key].entries+1] = entry
     end
@@ -170,7 +170,7 @@ function addon.GetRaidCollectionRows(settings)
                 if piece.itemID then setItems[piece.itemID] = true end
                 local lines = {context.name .. " · " .. (context.difficultyName or ""), fr and "Pièce du set de votre classe" or "Current class set piece"}
                 for _, route in ipairs(piece.routes) do for _, line in ipairs(addon.GetRaidActionLines(route)) do lines[#lines+1]=line end end
-                if piece.actionStatus == "unavailable" then lines[#lines+1]=fr and "TUM requis pour les possibilités d’amélioration et de catalyse." or "TUM is required for upgrade/catalyst possibilities." end
+                if piece.actionStatus == "unavailable" then lines[#lines+1]=fr and "Analyse des objets indisponible : API Blizzard manquante." or "Item analysis unavailable: missing Blizzard API." end
                 lines[#lines+1]=fr and "Clic : prévisualiser l’ensemble." or "Click: preview the set."
                 Add("sets", fr and "Set de classe" or "Class set", {name=piece.name, raidCollectionKind="set", raidCollectionItemID=piece.itemID,
                     icon=piece.itemID and C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(piece.itemID) or 132143,
@@ -220,12 +220,14 @@ end
 local events = CreateFrame("Frame")
 for _, event in ipairs({"EJ_LOOT_DATA_RECIEVED","GET_ITEM_INFO_RECEIVED","ITEM_DATA_LOAD_RESULT","NEW_MOUNT_ADDED","NEW_PET_ADDED","PET_JOURNAL_LIST_UPDATE","NEW_TOY_ADDED","TRANSMOG_COLLECTION_UPDATED","ZONE_CHANGED_NEW_AREA","PLAYER_ENTERING_WORLD","PLAYER_DIFFICULTY_CHANGED","BAG_UPDATE_DELAYED","PLAYER_EQUIPMENT_CHANGED","ACHIEVEMENT_EARNED","CRITERIA_UPDATE","RECEIVED_ACHIEVEMENT_LIST"}) do events:RegisterEvent(event) end
 local queued=false
+local collectionContents = { raidcollection = true }
 events:SetScript("OnEvent",function(_,event,itemID)
     if scanning then return end
     if event=="EJ_LOOT_DATA_RECIEVED" or event=="PLAYER_ENTERING_WORLD" then cache={} end
     if event=="GET_ITEM_INFO_RECEIVED" or event=="ITEM_DATA_LOAD_RESULT" then pendingItems[itemID]=nil end
     if not HasActivePanel() then return end
-    local function Refresh() queued=false; if addon.RefreshPanels then addon.RefreshPanels() end end
+    if addon.QueuePanelRefresh then return addon.QueuePanelRefresh(collectionContents) end
+    local function Refresh() queued=false; if addon.RefreshPanels then addon.RefreshPanels(collectionContents) end end
     if not C_Timer then return Refresh() end
     if not queued then queued=true; C_Timer.After(.1,Refresh) end
 end)
@@ -234,38 +236,51 @@ local hideHooked=false
 local function HookJournal()
     if not hideHooked and EncounterJournal and EncounterJournal.HookScript then
         hideHooked=true
-        EncounterJournal:HookScript("OnHide",function() if HasActivePanel() and addon.RefreshPanels then addon.RefreshPanels() end end)
+        EncounterJournal:HookScript("OnHide",function()
+            if not HasActivePanel() then return end
+            if addon.QueuePanelRefresh then addon.QueuePanelRefresh(collectionContents)
+            elseif addon.RefreshPanels then addon.RefreshPanels(collectionContents) end
+        end)
     end
 end
 local loaded=CreateFrame("Frame"); loaded:RegisterEvent("ADDON_LOADED"); loaded:SetScript("OnEvent",HookJournal); HookJournal()
 
-local editor
+local editor, editorChecks, editorHint, editorOptions, editorRefresh
+local editorKeys={"set","mount","pet","toy","appearance","achievement","collected"}
 function addon.CloseRaidCollectionEditor() if editor then editor:Hide() end end
-function addon.OpenRaidCollectionEditor(settings, refresh)
-    addon.CloseRaidCollectionEditor()
-    local context, options=Context(settings)
+-- Frames cannot be destroyed: the editor is built once and refilled on each opening.
+local function CreateEditor()
     editor=CreateFrame("Frame",nil,UIParent,"BackdropTemplate")
     editor:SetSize(430,350); editor:SetPoint("CENTER"); editor:SetFrameStrata("DIALOG")
     editor:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",edgeSize=16})
     editor:SetBackdropColor(.04,.04,.04,1)
-    local title=editor:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
+    local title=editor:CreateFontString(nil,"OVERLAY","GameFontNormalLarge"); addon.SetFont(title)
     title:SetPoint("TOPLEFT",20,-18); title:SetText(text.raidCollection)
-    local hint=editor:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-    hint:SetPoint("TOPLEFT",20,-48); hint:SetWidth(390); hint:SetJustifyH("LEFT")
-    hint:SetText((context and context.name .. " · " .. (context.difficultyName or "") or (fr and "Entrez dans un raid pour charger ses récompenses." or "Enter a raid to load its rewards.")) .. "\n" .. (fr and "Difficulté du raid visité. Clic sur un boss : plier/déplier. Hauteur réglable en mode édition." or "Uses the visited raid's difficulty. Click a boss to fold/unfold. Height is adjustable in Edit Mode."))
-    local keys={"set","mount","pet","toy","appearance","achievement","collected"}
-    for index,key in ipairs(keys) do
+    editorHint=editor:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall"); addon.SetFont(editorHint)
+    editorHint:SetPoint("TOPLEFT",20,-48); editorHint:SetWidth(390); editorHint:SetJustifyH("LEFT")
+    editorChecks={}
+    for index,key in ipairs(editorKeys) do
         local check=CreateFrame("CheckButton",nil,editor,"UICheckButtonTemplate")
         check:SetSize(26,26); check:SetPoint("TOPLEFT",20,-95-(index-1)*28)
-        check:SetChecked(key=="collected" and options.showCollected or key~="collected" and options.categories[key]~=false)
-        local label=editor:CreateFontString(nil,"OVERLAY","GameFontHighlight")
+        local label=editor:CreateFontString(nil,"OVERLAY","GameFontHighlight"); addon.SetFont(label)
         label:SetPoint("LEFT",check,"RIGHT",6,0); label:SetText(labels[key] or (fr and "Afficher les récompenses et hauts faits obtenus" or "Show collected rewards and completed achievements"))
         check:SetScript("OnClick",function(self)
-            if key=="collected" then options.showCollected=self:GetChecked() else options.categories[key]=self:GetChecked() end
-            refresh()
+            if key=="collected" then editorOptions.showCollected=self:GetChecked() else editorOptions.categories[key]=self:GetChecked() end
+            editorRefresh()
         end)
+        editorChecks[key]=check
     end
     local close=CreateFrame("Button",nil,editor,"UIPanelButtonTemplate")
     close:SetSize(30,24); close:SetPoint("TOPRIGHT",-12,-12); close:SetText("×"); close:SetScript("OnClick",addon.CloseRaidCollectionEditor)
+end
+function addon.OpenRaidCollectionEditor(settings, refresh)
+    addon.CloseRaidCollectionEditor()
+    local context, options=Context(settings)
+    if not editor then CreateEditor() end
+    editorOptions, editorRefresh=options, refresh
+    editorHint:SetText((context and context.name .. " · " .. (context.difficultyName or "") or (fr and "Entrez dans un raid pour charger ses récompenses." or "Enter a raid to load its rewards.")) .. "\n" .. (fr and "Difficulté du raid visité. Clic sur un boss : plier/déplier. Hauteur réglable en mode édition." or "Uses the visited raid's difficulty. Click a boss to fold/unfold. Height is adjustable in Edit Mode."))
+    for _,key in ipairs(editorKeys) do
+        editorChecks[key]:SetChecked(key=="collected" and options.showCollected or key~="collected" and options.categories[key]~=false)
+    end
     editor:Show()
 end

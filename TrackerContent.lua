@@ -45,14 +45,18 @@ local function Events()
             if not seen[id] and info and info.isCurrentEvent and not info.isLocked and info.name and info.name ~= "" then
                 seen[id] = true
                 local linked = info.linkedUiMapID and C_Map.GetMapInfo(info.linkedUiMapID)
+                local x, y
+                if info.position and info.position.GetXY then x, y = info.position:GetXY() end
                 rows[#rows + 1] = { name = info.name, questTitle = info.name, isQuestHeader = true,
                     trackerEvent = true, eventID = id, mapID = info.linkedUiMapID or mapID,
+                    waypointMapID = mapID, waypointX = x, waypointY = y,
                     questZone = linked and linked.name or map.name, iconAtlas = info.atlasName,
                     icon = "Interface\\Icons\\INV_Misc_PocketWatch_01", description = info.description,
                     labelColor = { 1, 0.55, 0.12 }, wrap = true }
                 if info.description and info.description ~= "" then
                     rows[#rows + 1] = { name = info.description, questObjective = true, directive = true,
                         eventID = id, mapID = info.linkedUiMapID or mapID, questTitle = info.name,
+                        waypointMapID = mapID, waypointX = x, waypointY = y,
                         labelColor = { 0.9, 0.9, 0.9 }, wrap = true }
                 end
             end

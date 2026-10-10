@@ -52,10 +52,12 @@ function addon.OpenContentEditor(settings, refresh)
     editor:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 16 })
     editor:SetBackdropColor(0.04, 0.04, 0.04, 1)
     local title = editor:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    addon.SetFont(title)
     title:SetPoint("TOPLEFT", 20, -18)
     title:SetText("FunelQOL · " .. settings.title)
     Button(editor, "×", 510, -12, 30, addon.CloseContentEditor)
     local hint = editor:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    addon.SetFont(hint)
     hint:SetPoint("TOPLEFT", 20, -54)
     hint:SetWidth(520)
     hint:SetJustifyH("LEFT")
@@ -64,8 +66,9 @@ function addon.OpenContentEditor(settings, refresh)
     if settings.content == "vault" then hint:SetText(text.vaultHint) end
     if settings.content == "raidsets" then hint:SetText(text.raidSetsHint) end
     if settings.content == "renown" then hint:SetText(text.renownHint) end
-    if settings.content == "preview" or settings.content == "delves" or settings.content == "delvequests" then
-        hint:SetText(settings.content == "delvequests" and text.delveQuestsHint or settings.content == "delves" and text.delvesHint or text.content .. ": " .. text.preview)
+    if settings.content == "weekly" then hint:SetText(text.weeklyHint) end
+    if settings.content == "preview" or settings.content == "delves" or settings.content == "delvequests" or settings.content == "rares" or settings.content == "teleports" then
+        hint:SetText(settings.content == "teleports" and text.teleportsHint or settings.content == "rares" and text.raresHint or settings.content == "delvequests" and text.delveQuestsHint or settings.content == "delves" and text.delvesHint or text.content .. ": " .. text.preview)
         window.update = function() title:SetText("FunelQOL · " .. settings.title) end
         editor:Show()
         return
@@ -94,6 +97,7 @@ function addon.OpenContentEditor(settings, refresh)
     if settings.content == "custom" then
         for _, field in ipairs({ { text.label, 48 }, { text.value, 288 } }) do
             local label = editor:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            addon.SetFont(label)
             label:SetPoint("TOPLEFT", field[2], -78)
             label:SetText(field[1])
         end
@@ -103,6 +107,7 @@ function addon.OpenContentEditor(settings, refresh)
         local slot = {}
         slots[index] = slot
         local label = editor:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        addon.SetFont(label)
         label:SetPoint("TOPLEFT", 18, y - 6)
         label:SetText(tostring(index))
         if settings.content == "custom" then
