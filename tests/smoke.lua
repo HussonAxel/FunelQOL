@@ -32,6 +32,7 @@ function methods:GetRegions() end
 function methods:GetParent() return self.parent end
 function methods:IsShown() return self.shown end
 function methods:SetChecked(checked) self.checked = checked end
+function methods:RegisterForClicks(...) self.clicks = {...} end
 function methods:SetRotation(rotation) self.rotation = rotation end
 function methods:SetFrameLevel(level) self.level = level end
 function methods:GetFrameLevel() return self.level or 1 end
@@ -1864,3 +1865,45 @@ assert(first.rows[1].data.name==persistedAddon.panelText.empty and not VisibleCu
 persistedAddon.CloseContentEditor()
 C_CurrencyInfo.GetCurrencyInfo=beforeCurrencyInfo
 print("PASS: visual categorized two-column currency selection, native icons/check states, saved selections, undiscovered zero balances, search, eight-row cap, reorder/removal/clear, editor reuse and no full-catalog scans during tracking.")
+SetSetting(first,"content","renown")
+visualSettings.selections.renown={1,2,3,0,0,0,0,0}
+persistedAddon.RefreshPanels()
+local loadRenown, toggleRenown=0,0
+local function CreateRenownSummary()
+    MajorFactionRenownFrame={shown=false,currentFactionID=nil,
+        IsShown=function(self) return self.shown end,
+        GetCurrentFactionID=function(self) return self.currentFactionID end}
+    ToggleMajorFactionRenown=function(id)
+        toggleRenown=toggleRenown+1
+        MajorFactionRenownFrame.currentFactionID=id; MajorFactionRenownFrame.shown=true
+    end
+end
+MajorFactionRenownFrame,ToggleMajorFactionRenown=nil,nil
+MajorFactions_LoadUI=function() loadRenown=loadRenown+1; CreateRenownSummary() end
+local factionRow=first.rows[1]
+assert(factionRow.clicks[2]=="RightButtonUp")
+factionRow.scripts.OnClick(factionRow,"LeftButton")
+assert(loadRenown==0)
+factionRow.scripts.OnClick(factionRow,"RightButton")
+assert(loadRenown==1 and toggleRenown==1 and MajorFactionRenownFrame.currentFactionID==1)
+factionRow.scripts.OnClick(factionRow,"RightButton")
+assert(toggleRenown==1 and MajorFactionRenownFrame.shown, "Repeated click closes renown summary")
+first.rows[2].scripts.OnClick(first.rows[2],"RightButton")
+assert(toggleRenown==2 and MajorFactionRenownFrame.currentFactionID==2, "Summary does not follow clicked faction")
+combat=true
+first.rows[1].scripts.OnClick(first.rows[1],"RightButton")
+assert(toggleRenown==2)
+combat=false
+LEM.callbacks.enter()
+first.rows[1].scripts.OnClick(first.rows[1],"RightButton")
+assert(toggleRenown==2)
+LEM.callbacks.exit()
+MajorFactionRenownFrame,ToggleMajorFactionRenown,MajorFactions_LoadUI=nil,nil,nil
+local beforeAddOns=C_AddOns
+C_AddOns={LoadAddOn=function(name) assert(name=="Blizzard_MajorFactions"); CreateRenownSummary() end}
+assert(persistedAddon.OpenRenownSummary(3) and MajorFactionRenownFrame.currentFactionID==3)
+MajorFactionRenownFrame,ToggleMajorFactionRenown=nil,nil
+C_AddOns={LoadAddOn=function() return false,"FAILED" end}
+assert(not persistedAddon.OpenRenownSummary(1), "Missing Blizzard module not handled")
+C_AddOns=beforeAddOns
+print("PASS: right-click Blizzard renown summary, exact faction, load-on-demand and modern loader fallback, repeated-click open behavior, left-click isolation, combat/Edit Mode guards and unavailable UI handling.")

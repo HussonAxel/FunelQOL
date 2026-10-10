@@ -5,10 +5,21 @@ local fr = GetLocale() == "frFR"
 local panels = {}
 addon.panels = panels
 
-local definitions = {
-    { id = "panel1", title = text.panel .. " 1", x = -32, y = -220 },
-    { id = "panel2", title = text.panel .. " 2", x = -312, y = -220 },
-}
+local definitions = {}
+-- Panels beyond the first two cascade leftwards, then down, from the upper right.
+local function Definition(index)
+    if not definitions[index] then
+        local column, line = (index - 1) % 4, math.floor((index - 1) / 4)
+        definitions[index] = { id = "panel" .. index, index = index, title = text.panel .. " " .. index, x = -32 - column * 280, y = -220 - line * 40 }
+    end
+    return definitions[index]
+end
+
+-- Only panels that currently exist are valid anchor targets.
+local function IsPanelID(id)
+    local index = type(id) == "string" and tonumber(string.match(id, "^panel(%d+)$"))
+    return index ~= nil and panels[index] ~= nil
+end
 
 local styles = {
     blizzard = { edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", fill = "Interface\\TargetingFrame\\UI-StatusBar", edgeSize = 8 },
@@ -47,8 +58,7 @@ local function Settings(id, layoutName)
     -- Apply the requested visual refresh once to existing layouts, while
     -- allowing subsequent opacity adjustments to persist.
     if settings.backgroundRevision ~= 1 then settings.opacity = 0.8; settings.backgroundRevision = 1 end
-    local definition
-    for _, entry in ipairs(definitions) do if entry.id == id then definition = entry; break end end
+    local definition = Definition(tonumber(string.match(id, "^panel(%d+)$")))
     local defaults = {
         point = "TOPRIGHT", x = definition.x, y = definition.y,
         title = definition.title, width = 260, scale = 1, enabled = true,
@@ -72,7 +82,7 @@ local function Settings(id, layoutName)
     if not styles[settings.style] then settings.style = "blizzard" end
     local anchors = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true, RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
     if not anchors[settings.point] then settings.point = "TOPRIGHT" end
-    if settings.anchorTarget ~= "panel1" and settings.anchorTarget ~= "panel2" or settings.anchorTarget == id then settings.anchorTarget = "screen" end
+    if not IsPanelID(settings.anchorTarget) or settings.anchorTarget == id then settings.anchorTarget = "screen" end
     if not anchorSides[settings.anchorSide] then settings.anchorSide = "BOTTOM" end
     if settings.anchorAlign ~= "start" and settings.anchorAlign ~= "center" and settings.anchorAlign ~= "finish" then settings.anchorAlign = "start" end
     settings.anchorGap = math.max(0, math.min(80, settings.anchorGap))
@@ -101,7 +111,7 @@ end
 
 local function WouldCycle(id, target, layoutName)
     local seen = { [id] = true }
-    while target == "panel1" or target == "panel2" do
+    while IsPanelID(target) do
         if seen[target] then return true end
         seen[target] = true
         target = Settings(target, layoutName).anchorTarget
@@ -205,6 +215,7 @@ end
 
 local function CreateRow(panel)
     local row = CreateFrame("Button", nil, panel.content, "BackdropTemplate")
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetHeight(22)
     row.bar = CreateFrame("StatusBar", nil, row)
     row.bar:SetPoint("TOPLEFT", 3, -3)
@@ -264,8 +275,12 @@ local function CreateRow(panel)
         self.isHovered = true
         PaintBorder(self)
     end)
-    row:SetScript("OnClick", function(self)
+    row:SetScript("OnClick", function(self, button)
         if editing then return end
+        if button == "RightButton" then
+            if self.data.factionID then addon.OpenRenownSummary(self.data.factionID) end
+            return
+        end
         if self.data.raidSetID then
             addon.PreviewRaidSet(self.data)
         elseif self.data.trackerSection then
@@ -805,7 +820,13 @@ local function AddSettings(panel)
                 if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto or settings.questAll end
                 return false
             end,
-            values = key == "anchorTarget" and { { text = fr and "Écran (libre)" or "Screen (free)", value = "screen" }, { text = text.panel .. (id == "panel1" and " 2" or " 1"), value = id == "panel1" and "panel2" or "panel1" } }
+            values = key == "anchorTarget" and function()
+                    local targets = { { text = fr and "Écran (libre)" or "Screen (free)", value = "screen" } }
+                    for _, other in ipairs(panels) do
+                        if other ~= panel then targets[#targets + 1] = { text = text.panel .. " " .. other.definition.index, value = other.definition.id } end
+                    end
+                    return targets
+                end
                 or key == "point" and { { text = fr and "Haut gauche" or "Top left", value = "TOPLEFT" }, { text = fr and "Haut" or "Top", value = "TOP" }, { text = fr and "Haut droite" or "Top right", value = "TOPRIGHT" }, { text = fr and "Gauche" or "Left", value = "LEFT" }, { text = fr and "Centre" or "Center", value = "CENTER" }, { text = fr and "Droite" or "Right", value = "RIGHT" }, { text = fr and "Bas gauche" or "Bottom left", value = "BOTTOMLEFT" }, { text = fr and "Bas" or "Bottom", value = "BOTTOM" }, { text = fr and "Bas droite" or "Bottom right", value = "BOTTOMRIGHT" } }
                 or key == "anchorSide" and { { text = fr and "En dessous" or "Below", value = "BOTTOM" }, { text = fr and "Au-dessus" or "Above", value = "TOP" }, { text = fr and "À gauche" or "Left", value = "LEFT" }, { text = fr and "À droite" or "Right", value = "RIGHT" } }
                 or key == "anchorAlign" and { { text = fr and "Début (gauche / haut)" or "Start (left / top)", value = "start" }, { text = fr and "Centre" or "Center", value = "center" }, { text = fr and "Fin (droite / bas)" or "End (right / bottom)", value = "finish" } }
@@ -834,6 +855,112 @@ function addon.ConfigurePanel(index)
     if panel then addon.OpenContentEditor(Settings(panel.definition.id), function() Render(panel); LEM:RefreshFrameSettings(panel) end) end
 end
 
+local created = {}
+-- Frames cannot be destroyed, so removed panels are kept hidden and reused.
+local function CreatePanel(index)
+    if created[index] then
+        panels[index] = created[index]
+        return created[index]
+    end
+    local definition = Definition(index)
+    local panel = CreateFrame("Frame", addonName .. definition.id .. "Panel", UIParent)
+    panel.definition, panel.rows = definition, {}
+    panel:SetClampedToScreen(true)
+    panel:SetFrameStrata("MEDIUM")
+    panel:SetSize(260, 26)
+    panel.viewport = CreateFrame("ScrollFrame", nil, panel)
+    panel.content = CreateFrame("Frame", nil, panel.viewport)
+    panel.content:SetSize(260, 1)
+    panel.viewport:SetScrollChild(panel.content)
+    panel.viewport:EnableMouseWheel(true)
+    panel.viewport:SetScript("OnMouseWheel", function(self, delta)
+        self:SetVerticalScroll(math.max(0, math.min(panel.scrollMaximum or 0, self:GetVerticalScroll() - Snap(delta * 40, PixelUnit(self)))))
+    end)
+    panel.scrollHint = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    panel.header = CreateFrame("Button", nil, panel, "BackdropTemplate")
+    panel.body = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+    panel.body:EnableMouse(false)
+    panel.body:SetFrameLevel(panel:GetFrameLevel())
+    panel.header:SetPoint("TOPLEFT")
+    panel.header:SetPoint("TOPRIGHT")
+    panel.header:SetHeight(26)
+    panel.title = panel.header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    panel.title:SetPoint("CENTER", -8, 0)
+    panel.title:SetWordWrap(false)
+    panel.title:SetText(definition.title)
+    panel.arrow = CreateFrame("Frame", nil, panel.header)
+    panel.arrow:EnableMouse(false)
+    panel.arrow:SetPoint("RIGHT", -9, 0)
+    panel.arrow.strokes = {}
+    for index = 1, 2 do
+        local stroke = panel.arrow:CreateTexture(nil, "OVERLAY")
+        stroke:SetColorTexture(0.3, 1, 0.3, 1)
+        DisableTextureSnapping(stroke)
+        panel.arrow.strokes[index] = stroke
+    end
+    panel.header:SetScript("OnClick", function()
+        if editing then return end
+        local settings = Settings(definition.id)
+        settings.collapsed = not settings.collapsed
+        Render(panel)
+    end)
+    panel.header:SetScript("OnEnter", function()
+        panel.title:SetTextColor(1, 1, 1)
+        for _, stroke in ipairs(panel.arrow.strokes) do stroke:SetColorTexture(1, 1, 1, 1) end
+    end)
+    panel.header:SetScript("OnLeave", function()
+        for _, stroke in ipairs(panel.arrow.strokes) do stroke:SetColorTexture(0.3, 1, 0.3, 1) end
+        local settings = Settings(definition.id)
+        local tracker = settings.content == "delves" or settings.content == "quests" and settings.questReadable and settings.questTracker
+        local compact = settings.content ~= "preview" and settings.content ~= "quests" and settings.content ~= "delves"
+        panel.title:SetTextColor(1, (tracker or compact) and 1 or 0.82, (tracker or compact) and 1 or 0)
+    end)
+    panels[definition.index] = panel
+    local default = { point = "TOPRIGHT", x = definition.x, y = definition.y }
+    LEM:AddFrame(panel, function(_, layoutName, point, x, y)
+        local settings = Settings(definition.id, layoutName)
+        -- Dragging / nudging deliberately releases the link, as in EUI movers.
+        settings.anchorTarget = "screen"
+        settings.point, settings.x, settings.y = point, x, y
+        Render(panel)
+    end, default)
+    AddSettings(panel)
+    created[index] = panel
+    return panel
+end
+
+function addon.AddPanel()
+    local index = #panels + 1
+    local panel = CreatePanel(index)
+    FunelQOLCharDB.panelCount = index
+    local settings = Settings(panel.definition.id)
+    panel:ClearAllPoints()
+    panel:SetPoint(settings.point, UIParent, settings.point, settings.x, settings.y)
+    addon.RefreshPanels()
+    LEM:RefreshFrameSettings(panel)
+    return index
+end
+
+function addon.RemovePanel()
+    local index = #panels
+    if index <= 1 then return nil end
+    addon.CloseContentEditor()
+    local panel, id = panels[index], panels[index].definition.id
+    -- Keep panels linked to the removed one where they currently are.
+    for _, other in ipairs(panels) do
+        local settings = Settings(other.definition.id)
+        if settings.anchorTarget == id then SaveFreePosition(other, settings); settings.anchorTarget = "screen" end
+    end
+    panels[index] = nil
+    FunelQOLCharDB.panelCount = index - 1
+    for _, layout in pairs(FunelQOLCharDB.layouts) do
+        if type(layout) == "table" then layout[id] = nil end
+    end
+    panel:Hide()
+    addon.RefreshPanels()
+    return index
+end
+
 function addon.InitializePanels()
     if #panels > 0 then return end
     if type(FunelQOLCharDB) ~= "table" then FunelQOLCharDB = {} end
@@ -854,70 +981,9 @@ function addon.InitializePanels()
     end)
     LEM:RegisterCallback("delete", function(name) FunelQOLCharDB.layouts[name] = nil end)
 
-    for _, definition in ipairs(definitions) do
-        local panel = CreateFrame("Frame", addonName .. definition.id .. "Panel", UIParent)
-        panel.definition, panel.rows = definition, {}
-        panel:SetClampedToScreen(true)
-        panel:SetFrameStrata("MEDIUM")
-        panel:SetSize(260, 26)
-        panel.viewport = CreateFrame("ScrollFrame", nil, panel)
-        panel.content = CreateFrame("Frame", nil, panel.viewport)
-        panel.content:SetSize(260, 1)
-        panel.viewport:SetScrollChild(panel.content)
-        panel.viewport:EnableMouseWheel(true)
-        panel.viewport:SetScript("OnMouseWheel", function(self, delta)
-            self:SetVerticalScroll(math.max(0, math.min(panel.scrollMaximum or 0, self:GetVerticalScroll() - Snap(delta * 40, PixelUnit(self)))))
-        end)
-        panel.scrollHint = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        panel.header = CreateFrame("Button", nil, panel, "BackdropTemplate")
-        panel.body = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-        panel.body:EnableMouse(false)
-        panel.body:SetFrameLevel(panel:GetFrameLevel())
-        panel.header:SetPoint("TOPLEFT")
-        panel.header:SetPoint("TOPRIGHT")
-        panel.header:SetHeight(26)
-        panel.title = panel.header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        panel.title:SetPoint("CENTER", -8, 0)
-        panel.title:SetWordWrap(false)
-        panel.title:SetText(definition.title)
-        panel.arrow = CreateFrame("Frame", nil, panel.header)
-        panel.arrow:EnableMouse(false)
-        panel.arrow:SetPoint("RIGHT", -9, 0)
-        panel.arrow.strokes = {}
-        for index = 1, 2 do
-            local stroke = panel.arrow:CreateTexture(nil, "OVERLAY")
-            stroke:SetColorTexture(0.3, 1, 0.3, 1)
-            DisableTextureSnapping(stroke)
-            panel.arrow.strokes[index] = stroke
-        end
-        panel.header:SetScript("OnClick", function()
-            if editing then return end
-            local settings = Settings(definition.id)
-            settings.collapsed = not settings.collapsed
-            Render(panel)
-        end)
-        panel.header:SetScript("OnEnter", function()
-            panel.title:SetTextColor(1, 1, 1)
-            for _, stroke in ipairs(panel.arrow.strokes) do stroke:SetColorTexture(1, 1, 1, 1) end
-        end)
-        panel.header:SetScript("OnLeave", function()
-            for _, stroke in ipairs(panel.arrow.strokes) do stroke:SetColorTexture(0.3, 1, 0.3, 1) end
-            local settings = Settings(definition.id)
-            local tracker = settings.content == "delves" or settings.content == "quests" and settings.questReadable and settings.questTracker
-            local compact = settings.content ~= "preview" and settings.content ~= "quests" and settings.content ~= "delves"
-            panel.title:SetTextColor(1, (tracker or compact) and 1 or 0.82, (tracker or compact) and 1 or 0)
-        end)
-        panels[#panels + 1] = panel
-        local default = { point = "TOPRIGHT", x = definition.x, y = definition.y }
-        LEM:AddFrame(panel, function(_, layoutName, point, x, y)
-            local settings = Settings(definition.id, layoutName)
-            -- Dragging / nudging deliberately releases the link, as in EUI movers.
-            settings.anchorTarget = "screen"
-            settings.point, settings.x, settings.y = point, x, y
-            Render(panel)
-        end, default)
-        AddSettings(panel)
-    end
+    if type(FunelQOLCharDB.panelCount) ~= "number" or FunelQOLCharDB.panelCount < 1 then FunelQOLCharDB.panelCount = 2 end
+    FunelQOLCharDB.panelCount = math.floor(FunelQOLCharDB.panelCount)
+    for index = 1, FunelQOLCharDB.panelCount do CreatePanel(index) end
     ApplyLayout(LEM:GetActiveLayoutName())
 
     local events = CreateFrame("Frame")

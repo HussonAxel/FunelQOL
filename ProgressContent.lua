@@ -8,6 +8,20 @@ text.renownHint = fr and "Choisis les renoms de Midnight à afficher. Toutes les
 local green, cyan, gray, gold = { 0.3, 1, 0.3 }, { 0.15, 0.8, 1 }, { 0.65, 0.65, 0.65 }, { 1, 0.82, 0 }
 local midnight = LE_EXPANSION_MIDNIGHT or 11
 
+function addon.OpenRenownSummary(factionID)
+    if not factionID or InCombatLockdown() then return false end
+    if not MajorFactionRenownFrame then
+        if MajorFactions_LoadUI then MajorFactions_LoadUI()
+        elseif C_AddOns and C_AddOns.LoadAddOn then C_AddOns.LoadAddOn("Blizzard_MajorFactions") end
+    end
+    local frame = MajorFactionRenownFrame
+    if not frame or not ToggleMajorFactionRenown then return false end
+    -- A repeated right click should leave the requested summary open.
+    if frame:IsShown() and frame:GetCurrentFactionID() == factionID then return true end
+    ToggleMajorFactionRenown(factionID)
+    return true
+end
+
 function addon.GetVaultCatalog()
     local rows, groups = {}, {}
     if not C_WeeklyRewards or not C_WeeklyRewards.GetActivities then return rows end
@@ -108,6 +122,7 @@ function addon.GetRenownCatalog()
                 lines[#lines + 1] = (fr and "Prochain niveau : " or "Next level: ") .. earned .. " / " .. threshold
             end
             if info.description and info.description ~= "" then lines[#lines + 1] = info.description end
+            lines[#lines + 1] = fr and "Clic droit : ouvrir le résumé du renom" or "Right click: open renown summary"
             local iconAtlas
             if type(info.textureKit) == "string" and info.textureKit ~= "" and C_Texture and C_Texture.GetAtlasInfo then
                 local candidate = "majorfactions_icons_" .. info.textureKit .. "512"
