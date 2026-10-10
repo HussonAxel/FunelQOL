@@ -40,6 +40,7 @@ local function Settings(id, layoutName)
         fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
         questTracker = true, questEvents = true, questReadable = true, questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
         delvesBountifulOnly = false, delvesSort = "grade", delvesHeight = 400,
+        delveQuestsHideCompleted = false,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -187,6 +188,8 @@ local function CreateRow(panel)
             addon.RefreshPanels()
         elseif (self.data.eventID or self.data.delveID) and not InCombatLockdown() and OpenWorldMap then
             OpenWorldMap(self.data.mapID)
+        elseif self.data.delveQuestID and self.data.delveQuestActive and not InCombatLockdown() then
+            QuestMapFrame_OpenToQuestDetails(self.data.delveQuestID)
         elseif self.data.questID and not InCombatLockdown() then
             if self.data.autoComplete and ShowQuestComplete then ShowQuestComplete(self.data.questID) else QuestMapFrame_OpenToQuestDetails(self.data.questID) end
         end
@@ -254,6 +257,11 @@ local function LayoutTrackerRow(row, entry, settings, width, pixel, compact)
             local story = entry.delveStory or text.delvesUnknown
             if entry.delveTime then story = story .. " · " .. entry.delveTime end
             metadata = metadata .. (metadata ~= "" and "\n" or "") .. story
+            if entry.delveQuest then
+                local color = entry.delveQuest.color
+                local colored = string.format("|cff%02x%02x%02x", math.floor(color[1] * 255), math.floor(color[2] * 255), math.floor(color[3] * 255))
+                metadata = metadata .. "\n" .. (fr and "Quête XP : " or "XP quest: ") .. colored .. entry.delveQuest.label .. "|r"
+            end
         elseif settings.questDetails then
             local badge = entry.questBadge or ""
             local status = entry.questFailed and text.questFailed or entry.valueText == text.questLoading and text.questLoading
@@ -607,6 +615,7 @@ local function AddSettings(panel)
         { key = "delvesBountifulOnly", label = text.delvesBountifulOnly, kind = LEM.SettingType.Checkbox, default = false },
         { key = "delvesSort", label = text.delvesSort, kind = LEM.SettingType.Dropdown, default = "grade" },
         { key = "delvesHeight", label = text.delvesHeight, kind = LEM.SettingType.Slider, default = 400, min = 150, max = 800, step = 25 },
+        { key = "delveQuestsHideCompleted", label = text.delveQuestsHideCompleted, kind = LEM.SettingType.Checkbox, default = false },
         { key = "questReadable", label = text.questReadable, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAuto", label = text.questAuto, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAll", label = text.questAll, kind = LEM.SettingType.Checkbox, default = true },
@@ -633,6 +642,7 @@ local function AddSettings(panel)
             hidden = function(layoutName)
                 local settings = Settings(id, layoutName)
                 if key == "rowCount" then return settings.content ~= "preview" end
+                if key == "delveQuestsHideCompleted" then return settings.content ~= "delvequests" end
                 if key == "showBars" then return settings.content ~= "preview" and settings.content ~= "quests" and settings.content ~= "delves" end
                 if key == "delvesBountifulOnly" or key == "delvesSort" or key == "delvesHeight" then return settings.content ~= "delves" end
                 if key == "questTracker" then return settings.content ~= "quests" or not settings.questReadable end

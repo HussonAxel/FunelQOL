@@ -80,7 +80,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -161,7 +161,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -333,7 +333,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -1223,3 +1223,91 @@ end
 SetSetting(first, "content", "currencies")
 assert(first.rows[1].value.point[2] >= -9, "Renown value column leaks into currency tracker")
 print("PASS: fixed right-side renown logo column, aligned value/label columns, uniform value fonts, narrow panel bounds and currency renderer reuse.")
+
+-- Per-character Delver's Call tracking survives quests leaving the journal.
+local delveQuestStates = { [93416] = "active", [93385] = "ready", [93384] = "turnedIn", [93410] = "failed" }
+local loadedTitles, questLoads = {}, {}
+C_QuestLog.IsOnQuest = function(id) return delveQuestStates[id] == "active" or delveQuestStates[id] == "ready" or delveQuestStates[id] == "failed" end
+C_QuestLog.IsComplete = function(id) return delveQuestStates[id] == "ready" end
+C_QuestLog.IsFailed = function(id) return delveQuestStates[id] == "failed" end
+C_QuestLog.IsQuestFlaggedCompleted = function(id) return delveQuestStates[id] == "turnedIn" end
+C_QuestLog.IsQuestFlaggedCompletedOnAccount = function() return true end
+C_QuestLog.GetTitleForQuestID = function(id) return loadedTitles[id] end
+C_QuestLog.RequestLoadQuestByID = function(id) questLoads[id] = (questLoads[id] or 0) + 1 end
+C_QuestLog.GetQuestObjectives = function(id) return { { text = "0/1 Complete delve " .. id, finished = false } } end
+loadedTitles[93416] = "L’appel du gouffre : Le golfe des souvenirs"
+settings = FunelQOLCharDB.layouts[LEM.active].panel1
+settings.title = first.definition.title
+SetSetting(first, "content", "delvequests")
+local calls = persistedAddon.GetPanelRows(settings)
+assert(#calls == 10 and first.rows[10].shown and first.body.shown)
+local byID = {}
+for _, call in ipairs(calls) do
+    assert(not byID[call.delveQuestID]); byID[call.delveQuestID] = call
+end
+assert(byID[93416].delveQuestStatus == "active" and byID[93416].name == "Le golfe des souvenirs")
+assert(byID[93385].valueText == "À rendre" and byID[93384].valueText == "Rendue" and byID[93410].valueText == "Échouée")
+assert(byID[93386].valueText == "Non prise", "Account completion masks character quest status")
+assert(byID[93416].tooltipLines[4]:find("0/1", 1, true), "Delve quest objective missing from hover")
+assert(not byID[63436] and not byID[63437], "Unverified Coiled Isle quest invented")
+persistedAddon.RefreshPanels(); persistedAddon.RefreshPanels()
+for _, count in pairs(questLoads) do assert(count == 1, "Uncached quest title repeatedly requested") end
+local function FindCall(id)
+    for _, row in ipairs(first.rows) do if row.shown and row.data.delveQuestID == id then return row end end
+end
+local activeCall = FindCall(93416)
+openedQuest = nil
+activeCall.scripts.OnClick(activeCall)
+assert(openedQuest == 93416)
+combat = true; openedQuest = nil; activeCall.scripts.OnClick(activeCall); assert(not openedQuest); combat = false
+LEM.callbacks.enter(); activeCall.scripts.OnClick(activeCall); assert(not openedQuest); LEM.callbacks.exit()
+FindCall(93386).scripts.OnClick(FindCall(93386)); assert(not openedQuest, "Unaccepted quest opens quest details")
+delveQuestStates[93416] = "ready"
+progressEvents.scripts.OnEvent(progressEvents, "QUEST_LOG_UPDATE")
+assert(FindCall(93416).value.text == "À rendre")
+delveQuestStates[93416] = "turnedIn"
+progressEvents.scripts.OnEvent(progressEvents, "QUEST_TURNED_IN", 93416)
+assert(FindCall(93416).value.text == "Rendue", "Turned-in quest disappears from completion tracker")
+delveQuestStates[93385] = nil
+progressEvents.scripts.OnEvent(progressEvents, "QUEST_REMOVED", 93385)
+assert(FindCall(93385).value.text == "Non prise", "Abandoned quest keeps accepted state")
+SetSetting(first, "delveQuestsHideCompleted", true)
+assert(not FindCall(93416) and not FindCall(93384) and FindCall(93385))
+LEM.callbacks.create("DelveQuestCopy", nil, LEM.active)
+SetSetting(first, "delveQuestsHideCompleted", false)
+assert(FunelQOLCharDB.layouts.DelveQuestCopy.panel1.delveQuestsHideCompleted)
+persistedAddon.ConfigurePanel(1)
+local questHint
+for _, frame in ipairs(frames) do if frame.text == persistedAddon.panelText.delveQuestsHint then questHint = frame end end
+assert(questHint, "Automatic ten-quest tracker offers an eight-slot editor")
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first, "style", style)
+    for _, width in ipairs({ 180, 420 }) do
+        SetSetting(first, "width", width)
+        for _, fontSize in ipairs({ 10, 18 }) do
+            SetSetting(first, "fontSize", fontSize)
+            for _, row in ipairs(first.rows) do if row.shown then
+                assert(row.value.width >= row.value:GetUnboundedStringWidth())
+                row.scripts.OnEnter(row)
+            end end
+        end
+    end
+end
+local completionAPI = C_QuestLog.IsQuestFlaggedCompleted
+C_QuestLog.IsQuestFlaggedCompleted = nil
+assert(persistedAddon.GetDelveQuestState(persistedAddon.delveRatings[1]).status == "unknown")
+C_QuestLog.IsQuestFlaggedCompleted = completionAPI
+for _, definition in ipairs(persistedAddon.delveRatings) do if definition.levelingQuestID then delveQuestStates[definition.levelingQuestID] = "turnedIn" end end
+SetSetting(first, "delveQuestsHideCompleted", true)
+assert(first.rows[1].data.name == "Toutes les quêtes sont rendues" and not first.rows[2].shown)
+settings.delvesSections = {}
+SetSetting(first, "delvesBountifulOnly", false)
+delvePOIs = { [1] = { name = "The Gulf of Memory", atlasName = "delves-regular", mapID = 2537, tooltipWidgetSet = 301 } }
+delveWidgets = { [301] = { shownState = 1, text = "Story Variant: Descent of the Haranir" } }
+persistedAddon.InvalidateDelves()
+SetSetting(first, "content", "delves")
+local delveCall = FindTrackerRow(function(data) return data.delveID == 1 end)
+assert(delveCall.data.delveGrade == "C" and delveCall.data.delveQuest.status == "turnedIn")
+assert(delveCall.meta.text:find("Quête XP", 1, true) and delveCall.meta.text:find("Rendue", 1, true))
+delveCall.scripts.OnEnter(delveCall)
+print("PASS: ten verified Delver's Call quests, per-character accepted/ready/turned-in/failed/unknown states, localized title loading, quest events and abandonment, completed filter/layout copy, all-row compact rendering, guarded clicks and existing Delves metadata.")

@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.8.3 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.9.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -186,3 +186,13 @@ Sources: [Blizzard weekly-reward API](https://github.com/Gethe/wow-ui-source/blo
 Renown rows use each faction's Blizzard emblem (`majorfactions_icons_<textureKit>512`), at 20 UI units with the full atlas visible. Row height and label/value spacing reserve room for the larger logo. Atlas availability is checked before applying it; missing faction art falls back to the reputation icon. The atlas is selected through faction data rather than localized faction names. Reference: [Blizzard Journeys faction icons](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_EncounterJournal/Mainline/Blizzard_Journeys.lua).
 
 Renown emblems now occupy a fixed 20-unit column at the far right. Values share a right-aligned column immediately to its left, measured from the widest visible value; labels share the remaining width. All values use the same font size, reduced together if a narrow panel requires it. Fallback emblems reserve the same space.
+
+## Delve leveling quest tracking
+
+After `/reload`, select **Content → Delve quests** (French: **Quêtes de gouffres**) in `/funelqol edit`. The compact panel automatically lists all ten verified Midnight Delver's Call quests, including those outside the quest log. States are **Not accepted**, **In progress**, **Ready**, **Turned in**, **Failed**, or **Unknown** if status APIs are unavailable. **Hide turned-in quests** is saved independently per panel/layout. Hover shows the localized quest title, quest ID, zone and available objective text. Click an accepted quest to open its details outside combat/Edit Mode. Configure rows explains the automatic list; the eight-slot manual editor does not limit these ten entries.
+
+The existing **Delves** content also displays **XP quest: <status>** below the variant/time metadata and includes the quest details in its tooltip. Story grades, bountiful classification and reference times remain independent of quest completion. No quest is accepted, watched or turned in automatically.
+
+Completion uses the active character's `C_QuestLog.IsQuestFlaggedCompleted`, never account completion. Readiness requires the quest to be in the character's journal and complete; accepting, abandoning, turning in and quest-data updates refresh both panels. **Not accepted** means absent from the journal and not flagged complete; it does not claim that campaign/level prerequisites are satisfied. No fixed XP reward is displayed because it can depend on the character and bonuses.
+
+Verified mapping from [Wowhead's Midnight Delver's Call quest database](https://www.wowhead.com/storyline/delvers-call-midnight-6051): Shadow Enclave 93372; Collegiate Calamity 93384; Darkway 93385; Parhelion Plaza 93386; Atal'Aman 93409; Twilight Crypts 93410; Gulf of Memory 93416; Grudge Pit 93421; Sunkiller Sanctum 93427; Shadowguard Point 93428. The two Coiled Isle delves have no verified quest mapping in this list, so no quest is invented for them. State APIs: [Blizzard quest-log documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLogDocumentation.lua). Providers live in `DelveQuestContent.lua`; mappings are attached to `DelveRatings.lua` definitions.

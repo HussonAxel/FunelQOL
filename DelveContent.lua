@@ -186,6 +186,7 @@ function addon.GetDelveRows(settings)
                 description = delve.description, iconAtlas = delve.iconAtlas, icon = "Interface\\Icons\\INV_Misc_Map_01",
                 bountiful = delve.bountiful, borderColor = delve.bountiful and { 1, 0.75, 0.2, 1 } or nil,
                 delveReferences = delve.definition and delve.definition.stories,
+                delveQuest = addon.GetDelveQuestState(delve.definition),
                 labelColor = { 1, 0.82, 0 }, wrap = true }
         end
     end
@@ -203,6 +204,11 @@ function addon.ShowDelveTooltip(data)
         GameTooltip:AddLine((fr and "Note de référence : " or "Reference grade: ") .. data.delveGrade .. " · " .. data.delveTime, 1, 0.82, 0)
     elseif data.delveStory then GameTooltip:AddLine(text.delvesUnrated, 0.65, 0.7, 0.75, true) end
     if data.description then GameTooltip:AddLine(data.description, 1, 1, 1, true) end
+    if data.delveQuest then
+        local quest = data.delveQuest
+        GameTooltip:AddLine((fr and "Quête XP : " or "XP quest: ") .. quest.label, quest.color[1], quest.color[2], quest.color[3])
+        for _, line in ipairs(quest.tooltipLines) do GameTooltip:AddLine(line, 1, 1, 1, true) end
+    end
     if data.delveReferences then
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(fr and "Ta liste de référence" or "Your reference list", 0.65, 0.7, 0.75)

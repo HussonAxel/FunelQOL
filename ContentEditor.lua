@@ -59,8 +59,8 @@ function addon.OpenContentEditor(settings, refresh)
     if settings.content == "quests" then hint:SetText(text.questHint) end
     if settings.content == "vault" then hint:SetText(text.vaultHint) end
     if settings.content == "renown" then hint:SetText(text.renownHint) end
-    if settings.content == "preview" or settings.content == "delves" then
-        hint:SetText(settings.content == "delves" and text.delvesHint or text.content .. ": " .. text.preview)
+    if settings.content == "preview" or settings.content == "delves" or settings.content == "delvequests" then
+        hint:SetText(settings.content == "delvequests" and text.delveQuestsHint or settings.content == "delves" and text.delvesHint or text.content .. ": " .. text.preview)
         window.update = function() title:SetText("FunelQOL · " .. settings.title) end
         editor:Show()
         return

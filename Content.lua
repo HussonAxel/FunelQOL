@@ -16,6 +16,7 @@ addon.contentTypes = {
     { text = fr and "Talents sélectionnés" or "Selected talents", value = "talents" },
     { text = fr and "Quêtes suivies" or "Tracked quests", value = "quests" },
     { text = "Delves", value = "delves" },
+    { text = fr and "Quêtes de gouffres" or "Delve quests", value = "delvequests" },
     { text = fr and "Chambre forte" or "Great Vault", value = "vault" },
     { text = fr and "Renoms · Midnight" or "Renown · Midnight", value = "renown" },
     { text = fr and "Menu personnalisé" or "Custom menu", value = "custom" },
@@ -119,6 +120,7 @@ function addon.GetMoneyText(amount, fontSize)
 end
 
 function addon.GetPanelRows(settings)
+    if settings.content == "delvequests" then return addon.GetDelveQuestRows(settings) end
     if settings.content == "vault" then return addon.GetVaultRows(settings) end
     if settings.content == "delves" then return addon.GetDelveRows(settings) end
     if settings.content == "preview" then return addon.GetPreviewRows(settings.rowCount) end
