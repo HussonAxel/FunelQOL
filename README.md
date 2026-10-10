@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.12.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.12.2 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -238,3 +238,5 @@ TUM is an optional dependency, loaded first when enabled. FunelQOL calls `Transm
 **Click a difficulty row to preview its complete outfit in Blizzard's dressing room**, including pieces you have not collected. One source per appearance slot is used, with robes grouped as chest armor. Preview clicks are ignored in combat and during Edit Mode. Reference: [Blizzard DressUpTransmogSet](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/DressUpFrames.lua). The action engine is in `RaidAppearanceActions.lua`; the public API contract was read from the installed TUM `api.lua`, with destination mapping verified against its `collectionUi.lua`.
 
 Smoke tests cover all three paths and their object locations/levels, unrelated upgrade visuals, shared/PvP exclusions, collection counts, inventory invalidation, cache warmup, missing/incompatible TUM APIs, native inline icons at narrow widths, complete outfit preview and combat/Edit Mode guards. Actual items and dressing-room rendering still require in-game validation.
+
+Menu headings, section titles and tracker row labels use bundled Noto Sans Bold (SIL Open Font License; see Media/Fonts/OFL.txt). Objective descriptions and numeric values retain their regular font.

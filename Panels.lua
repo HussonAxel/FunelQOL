@@ -294,7 +294,7 @@ local function LayoutTrackerRow(row, entry, settings, width, pixel, compact)
     row.bar:Hide()
     row.border:Hide()
     row.background:Hide()
-    row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (compact and (entry.isQuestHeader and 1 or 0) or entry.isQuestHeader and 2 or 1), compact and "OUTLINE" or "")
+    row.label:SetFont((entry.trackerSection or entry.isQuestHeader) and addon.media.menuFont or STANDARD_TEXT_FONT, settings.fontSize + (compact and (entry.isQuestHeader and 1 or 0) or entry.isQuestHeader and 2 or 1), compact and "OUTLINE" or "")
     row.label:SetWordWrap(true)
     if row.label.SetShadowOffset then row.label:SetShadowOffset(1, -1); row.label:SetShadowColor(0, 0, 0, 1) end
     local section, header = entry.trackerSection, entry.isQuestHeader
@@ -446,7 +446,7 @@ local function Render(panel)
     end
     panel.title:SetText(compactSurface and string.upper(title) or title)
     panel.title:SetWidth(width - Snap(40, pixel))
-    panel.title:SetFont(STANDARD_TEXT_FONT, settings.fontSize + (delves and 3 or 0), delves and "" or "OUTLINE")
+    panel.title:SetFont(addon.media.menuFont, settings.fontSize + (delves and 3 or 0), delves and "" or "OUTLINE")
     panel.title:SetTextColor(1, (tracker or compact) and 1 or 0.82, (tracker or compact) and 1 or 0)
     panel.editModeName = "FunelQOL · " .. settings.title
     panel.arrow:ClearAllPoints()
@@ -521,7 +521,7 @@ local function Render(panel)
         row.separator:SetPoint("BOTTOMRIGHT", 0, 0)
         row.separator:SetHeight(pixel)
         row.separator:SetColorTexture(0.2, 0.2, 0.2, 0.7)
-        row.label:SetFont(STANDARD_TEXT_FONT, settings.fontSize, "OUTLINE")
+        row.label:SetFont(addon.media.menuFont, settings.fontSize, "OUTLINE")
         row.value:SetFont(STANDARD_TEXT_FONT, renown and renownFontSize or settings.fontSize, "OUTLINE")
         row.value:SetTextColor(1, 1, 1)
         row.bar:SetStatusBarTexture(style.fill)
@@ -589,7 +589,7 @@ local function Render(panel)
         elseif readable and (entry.isQuestHeader or entry.questObjective) then
             local isHeader = entry.isQuestHeader
             local fontSize = settings.fontSize + (isHeader and 2 or 1)
-            row.label:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            row.label:SetFont(isHeader and addon.media.menuFont or STANDARD_TEXT_FONT, fontSize, "")
             if row.label.SetShadowOffset then row.label:SetShadowOffset(1, -1); row.label:SetShadowColor(0, 0, 0, 1) end
             row.label:ClearAllPoints()
             row.label:SetPoint("TOPLEFT", Snap(isHeader and 10 or 16, pixel), -Snap(isHeader and 8 or 2, pixel))

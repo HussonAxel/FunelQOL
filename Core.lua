@@ -1,6 +1,6 @@
 local addonName, addon = ...
 
-addon.version = "0.12.1"
+addon.version = "0.12.2"
 
 local function Print(message)
     DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffFunelQOL|r: " .. message)

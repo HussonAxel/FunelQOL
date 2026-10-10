@@ -5,6 +5,7 @@ local addonName, addon = ...
 local root = "Interface\\AddOns\\" .. addonName .. "\\Media\\Ellesmere\\"
 
 addon.media = {
+    menuFont = "Interface\\AddOns\\" .. addonName .. "\\Media\\Fonts\\NotoSans-Bold.ttf",
     textures = {
         pixelsFill = root .. "textures\\pixels-fill.tga",
         pixelsDark = root .. "textures\\pixels-dark.tga",
