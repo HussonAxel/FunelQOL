@@ -1466,3 +1466,97 @@ raidInstance.kind = "none"
 progressEvents.scripts.OnEvent(progressEvents, "PLAYER_ENTERING_WORLD")
 assert(not first.rows[2].data.raidSetCurrent and first.rows[2].data.raidSetID == 5858)
 print("PASS: automatic current/historical raid sets, localized raid labels and difficulty variants, class/PvP isolation, legacy sizes, cached metadata, current difficulty visibility, season fallback on exit, follow toggle, custom titles and zone/difficulty events.")
+
+-- Resolve real anchor geometry in physical coordinates rather than only checking
+-- which SetPoint arguments were passed. Different panel scales are intentional.
+UIParent:SetSize(1920, 1080)
+function methods:GetWidth() return self.width end
+function methods:GetHeight() return self.height end
+function methods:SetClampedToScreen(value) self.clamped = value end
+local fractions = { TOPLEFT = {0,1}, TOP = {.5,1}, TOPRIGHT = {1,1}, LEFT = {0,.5}, CENTER = {.5,.5}, RIGHT = {1,.5}, BOTTOMLEFT = {0,0}, BOTTOM = {.5,0}, BOTTOMRIGHT = {1,0} }
+local function Rect(frame)
+    local scale = frame:GetEffectiveScale()
+    local width, height = frame.width * scale, frame.height * scale
+    if frame == UIParent then return 0, height, width, 0 end
+    local p = frame.point
+    local target = p[2]
+    local l, t, r, b = Rect(target)
+    local own, rel = fractions[p[1]], fractions[p[3]]
+    local left = l + (r-l)*rel[1] + p[4]*scale - width*own[1]
+    local top = b + (t-b)*rel[2] + p[5]*scale + height*(1-own[2])
+    return left, top, left + width, top - height
+end
+local oldLeft, oldTop = methods.GetLeft, methods.GetTop
+function methods:GetLeft() if self == first or self == second then return select(1, Rect(self)) / self:GetEffectiveScale() end; return oldLeft(self) end
+function methods:GetTop() if self == first or self == second then return select(2, Rect(self)) / self:GetEffectiveScale() end; return oldTop(self) end
+local function Near(a,b) assert(math.abs(a-b) <= 768/physicalHeight + .0001, "Anchor geometry differs: " .. a .. " / " .. b) end
+SetSetting(first, "content", "preview")
+SetSetting(second, "content", "preview")
+SetSetting(first, "scale", 1)
+SetSetting(second, "scale", 1)
+SetSetting(first, "collapsed", true)
+SetSetting(second, "collapsed", true)
+LEM.positions[first](first, LEM.active, "TOPLEFT", 200, -100)
+SetSetting(second, "anchorTarget", "panel1")
+assert(second.point[2] == first and not second.clamped)
+local initialTop = select(2, Rect(second))
+first.header.scripts.OnClick(first.header)
+assert(select(2, Rect(second)) < initialTop - 20, "Opening upper panel overlaps the lower collapsed header")
+local gap = 8 * UIParent:GetEffectiveScale()
+Near(select(4,Rect(first)) - select(2,Rect(second)), gap)
+second.header.scripts.OnClick(second.header)
+Near(select(4,Rect(first)) - select(2,Rect(second)), gap)
+first.header.scripts.OnClick(first.header)
+Near(select(4,Rect(first)) - select(2,Rect(second)), gap)
+for _, side in ipairs({ "BOTTOM", "TOP", "LEFT", "RIGHT" }) do
+    SetSetting(second, "anchorSide", side)
+    for _, align in ipairs({ "start", "center", "finish" }) do
+        SetSetting(second, "anchorAlign", align)
+        for _, scale in ipairs({ .7, 1.5 }) do
+            SetSetting(second, "scale", scale)
+            for _, collapsed in ipairs({ true, false }) do
+                SetSetting(first, "collapsed", collapsed)
+                SetSetting(second, "collapsed", collapsed)
+                local l,t,r,b = Rect(first)
+                local x,y,z,w = Rect(second)
+                if side == "BOTTOM" then Near(b-y,gap)
+                elseif side == "TOP" then Near(w-t,gap)
+                elseif side == "LEFT" then Near(l-z,gap)
+                else Near(x-r,gap) end
+                if side == "TOP" or side == "BOTTOM" then
+                    Near(align == "start" and x or align == "finish" and z or (x+z)/2,
+                        align == "start" and l or align == "finish" and r or (l+r)/2)
+                else
+                    Near(align == "start" and y or align == "finish" and w or (y+w)/2,
+                        align == "start" and t or align == "finish" and b or (t+b)/2)
+                end
+            end
+        end
+    end
+end
+SetSetting(first, "anchorTarget", "panel2")
+assert(FunelQOLCharDB.layouts[LEM.active].panel1.anchorTarget == "screen", "Mutual link accepted")
+SetSetting(second, "anchorSide", "RIGHT")
+SetSetting(second, "anchorAlign", "start")
+SetSetting(second, "anchorOffset", 15)
+Near(select(2,Rect(second)) - select(2,Rect(first)), 15*UIParent:GetEffectiveScale())
+local beforeL,beforeT = Rect(second)
+SetSetting(second, "anchorTarget", "screen")
+Near(select(1,Rect(second)),beforeL); Near(select(2,Rect(second)),beforeT)
+assert(second.clamped)
+for point in pairs(fractions) do
+    local left,top = Rect(second)
+    SetSetting(second, "point", point)
+    Near(select(1,Rect(second)),left); Near(select(2,Rect(second)),top)
+end
+SetSetting(second, "anchorTarget", "panel1")
+LEM.callbacks.create("AnchoredCopy", nil, LEM.active)
+assert(FunelQOLCharDB.layouts.AnchoredCopy.panel2.anchorTarget == "panel1")
+LEM.positions[second](second, LEM.active, "TOPLEFT", 600, -100)
+assert(FunelQOLCharDB.layouts[LEM.active].panel2.anchorTarget == "screen" and second.point[2] == UIParent)
+assert(FunelQOLCharDB.layouts.AnchoredCopy.panel2.anchorTarget == "panel1", "Anchor layout copy mutated")
+local current = FunelQOLCharDB.layouts[LEM.active]
+current.panel1.anchorTarget, current.panel2.anchorTarget = "panel2", "panel1"
+persistedAddon.RefreshPanels()
+assert(current.panel1.anchorTarget == "screen" and current.panel2.anchorTarget == "panel1", "Corrupt saved cycle reaches the frame engine")
+print("PASS: persistent panel edge anchors, open/collapsed stacking, all four sides and three alignments at different scales, spacing/cross-offset geometry, nine screen anchors, cycle protection, detach/drag without jumps and layout-copy isolation.")

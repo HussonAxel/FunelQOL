@@ -17,6 +17,19 @@ local styles = {
 }
 local activeLayout = "Modern"
 local editing = false
+text.anchorTarget = fr and "Ancrer à" or "Anchor to"
+text.anchorSide = fr and "Côté de la cible" or "Target side"
+text.anchorAlign = fr and "Alignement" or "Alignment"
+text.anchorGap = fr and "Espacement" or "Spacing"
+text.anchorOffset = fr and "Décalage le long du bord" or "Offset along edge"
+text.point = fr and "Ancre écran" or "Screen anchor"
+text.anchorCycle = fr and "Ce lien créerait une boucle d’ancres." or "This link would create an anchor cycle."
+local anchorSides = {
+    BOTTOM = { start = { "TOPLEFT", "BOTTOMLEFT" }, center = { "TOP", "BOTTOM" }, finish = { "TOPRIGHT", "BOTTOMRIGHT" } },
+    TOP = { start = { "BOTTOMLEFT", "TOPLEFT" }, center = { "BOTTOM", "TOP" }, finish = { "BOTTOMRIGHT", "TOPRIGHT" } },
+    LEFT = { start = { "TOPRIGHT", "TOPLEFT" }, center = { "RIGHT", "LEFT" }, finish = { "BOTTOMRIGHT", "BOTTOMLEFT" } },
+    RIGHT = { start = { "TOPLEFT", "TOPRIGHT" }, center = { "LEFT", "RIGHT" }, finish = { "BOTTOMLEFT", "BOTTOMRIGHT" } },
+}
 
 local function Copy(value)
     if type(value) ~= "table" then return value end
@@ -42,6 +55,7 @@ local function Settings(id, layoutName)
         delvesBountifulOnly = false, delvesSort = "grade", delvesHeight = 400,
         delveQuestsHideCompleted = false,
         raidSetsFollowInstance = true,
+        anchorTarget = "screen", anchorSide = "BOTTOM", anchorAlign = "start", anchorGap = 8, anchorOffset = 0,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -55,6 +69,11 @@ local function Settings(id, layoutName)
     if not styles[settings.style] then settings.style = "blizzard" end
     local anchors = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true, RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
     if not anchors[settings.point] then settings.point = "TOPRIGHT" end
+    if settings.anchorTarget ~= "panel1" and settings.anchorTarget ~= "panel2" or settings.anchorTarget == id then settings.anchorTarget = "screen" end
+    if not anchorSides[settings.anchorSide] then settings.anchorSide = "BOTTOM" end
+    if settings.anchorAlign ~= "start" and settings.anchorAlign ~= "center" and settings.anchorAlign ~= "finish" then settings.anchorAlign = "start" end
+    settings.anchorGap = math.max(0, math.min(80, settings.anchorGap))
+    settings.anchorOffset = math.max(-200, math.min(200, settings.anchorOffset))
     settings.width = math.max(180, math.min(420, settings.width))
     settings.scale = math.max(0.7, math.min(1.5, settings.scale))
     settings.opacity = math.max(0.2, math.min(1, settings.opacity))
@@ -75,6 +94,66 @@ end
 
 local function Snap(value, pixel)
     return math.floor(value / pixel + 0.5 + 0.001) * pixel
+end
+
+local function WouldCycle(id, target, layoutName)
+    local seen = { [id] = true }
+    while target == "panel1" or target == "panel2" do
+        if seen[target] then return true end
+        seen[target] = true
+        target = Settings(target, layoutName).anchorTarget
+    end
+    return false
+end
+
+local screenPoints = { TOPLEFT = { 0, 1 }, TOP = { .5, 1 }, TOPRIGHT = { 1, 1 }, LEFT = { 0, .5 }, CENTER = { .5, .5 }, RIGHT = { 1, .5 }, BOTTOMLEFT = { 0, 0 }, BOTTOM = { .5, 0 }, BOTTOMRIGHT = { 1, 0 } }
+local function SaveFreePosition(panel, settings, point)
+    local left, top = panel:GetLeft(), panel:GetTop()
+    local width, height = UIParent:GetWidth(), UIParent:GetHeight()
+    local fraction = screenPoints[point or "TOPLEFT"]
+    if left and top and width and height and fraction then
+        local ratio = UIParent:GetEffectiveScale() / panel:GetEffectiveScale()
+        settings.point = point or "TOPLEFT"
+        settings.x = left + panel:GetWidth() * fraction[1] - width * ratio * fraction[1]
+        settings.y = top - panel:GetHeight() * (1 - fraction[2]) - height * ratio * fraction[2]
+    end
+end
+
+local function PositionPanels()
+    local lookup, placed = {}, {}
+    for _, panel in ipairs(panels) do
+        lookup[panel.definition.id] = panel
+        local settings = Settings(panel.definition.id)
+        if WouldCycle(panel.definition.id, settings.anchorTarget) then settings.anchorTarget = "screen" end
+        -- Clear stale engine links before applying a changed dependency graph.
+        panel:ClearAllPoints()
+    end
+    local function Place(panel)
+        if placed[panel] then return end
+        placed[panel] = true
+        local settings = Settings(panel.definition.id)
+        local target = lookup[settings.anchorTarget]
+        local point, relativePoint, x, y = settings.point, settings.point, settings.x, settings.y
+        if target then
+            Place(target)
+            local pair = anchorSides[settings.anchorSide][settings.anchorAlign]
+            point, relativePoint = pair[1], pair[2]
+            -- Link offsets are in UIParent units, even when panels have different scales.
+            local ratio = UIParent:GetEffectiveScale() / panel:GetEffectiveScale()
+            local gap, offset = settings.anchorGap * ratio, settings.anchorOffset * ratio
+            x = settings.anchorSide == "LEFT" and -gap or settings.anchorSide == "RIGHT" and gap or offset
+            y = settings.anchorSide == "TOP" and gap or settings.anchorSide == "BOTTOM" and -gap or offset
+        end
+        local relative = target or UIParent
+        panel:SetClampedToScreen(not target)
+        panel:SetPoint(point, relative, relativePoint, x, y)
+        local left, top, pixel = panel:GetLeft(), panel:GetTop(), PixelUnit(panel)
+        if left and top then
+            panel:ClearAllPoints()
+            panel:SetPoint(point, relative, relativePoint, x + Snap(left, pixel) - left, y + Snap(top, pixel) - top)
+        end
+    end
+    for _, panel in ipairs(panels) do Place(panel) end
 end
 
 local function DisableTextureSnapping(texture)
@@ -571,16 +650,7 @@ local function Render(panel)
     panel.content:SetShown(not settings.collapsed)
     panel.viewport:SetShown(not settings.collapsed)
     panel:SetHeight(settings.collapsed and headerHeight or (contentTop + visibleHeight + questInset + (panel.scrollMaximum > 0 and Snap(22, pixel) or 0)))
-    -- Rebuild from the saved anchor before snapping the visible top-left edge.
-    -- GetLeft/GetTop are expressed in the frame's own scaled coordinates.
-    panel:ClearAllPoints()
-    panel:SetPoint(settings.point, UIParent, settings.point, settings.x, settings.y)
-    local left, top = panel:GetLeft(), panel:GetTop()
-    if left and top then
-        panel:ClearAllPoints()
-        panel:SetPoint(settings.point, UIParent, settings.point,
-            settings.x + Snap(left, pixel) - left, settings.y + Snap(top, pixel) - top)
-    end
+    PositionPanels()
     panel:SetShown(editing or settings.enabled)
 end
 
@@ -629,6 +699,12 @@ local function AddSettings(panel)
         { key = "questObjectives", label = text.questObjectives, kind = LEM.SettingType.Checkbox, default = true },
         { key = "enabled", label = text.enabled, kind = LEM.SettingType.Checkbox, default = true },
         { key = "collapsed", label = text.collapsed, kind = LEM.SettingType.Checkbox, default = false },
+        { key = "anchorTarget", label = text.anchorTarget, kind = LEM.SettingType.Dropdown, default = "screen" },
+        { key = "point", label = text.point, kind = LEM.SettingType.Dropdown, default = "TOPRIGHT" },
+        { key = "anchorSide", label = text.anchorSide, kind = LEM.SettingType.Dropdown, default = "BOTTOM" },
+        { key = "anchorAlign", label = text.anchorAlign, kind = LEM.SettingType.Dropdown, default = "start" },
+        { key = "anchorGap", label = text.anchorGap, kind = LEM.SettingType.Slider, default = 8, min = 0, max = 80, step = 1 },
+        { key = "anchorOffset", label = text.anchorOffset, kind = LEM.SettingType.Slider, default = 0, min = -200, max = 200, step = 1 },
         { key = "width", label = text.width, kind = LEM.SettingType.Slider, default = 260, min = 180, max = 420, step = 10 },
         { key = "scale", label = text.scale, kind = LEM.SettingType.Slider, default = 1, min = 0.7, max = 1.5, step = 0.05 },
         { key = "style", label = text.style, kind = LEM.SettingType.Dropdown, default = "blizzard" },
@@ -644,6 +720,8 @@ local function AddSettings(panel)
             minValue = spec.min, maxValue = spec.max, valueStep = spec.step,
             hidden = function(layoutName)
                 local settings = Settings(id, layoutName)
+                if key == "point" then return settings.anchorTarget ~= "screen" end
+                if key == "anchorSide" or key == "anchorAlign" or key == "anchorGap" or key == "anchorOffset" then return settings.anchorTarget == "screen" end
                 if key == "rowCount" then return settings.content ~= "preview" end
                 if key == "delveQuestsHideCompleted" then return settings.content ~= "delvequests" end
                 if key == "raidSetsFollowInstance" then return settings.content ~= "raidsets" end
@@ -656,9 +734,18 @@ local function AddSettings(panel)
                 if key == "questLimit" then return settings.content ~= "quests" or not settings.questAuto or settings.questAll end
                 return false
             end,
-            values = key == "content" and addon.contentTypes or key == "delvesSort" and { { text = fr and "Note" or "Grade", value = "grade" }, { text = fr and "Nom" or "Name", value = "name" } } or key == "style" and { { text = "Blizzard", value = "blizzard" }, { text = "Ayije", value = "ayije" }, { text = "Pixels", value = "pixels" } } or nil,
+            values = key == "anchorTarget" and { { text = fr and "Écran (libre)" or "Screen (free)", value = "screen" }, { text = text.panel .. (id == "panel1" and " 2" or " 1"), value = id == "panel1" and "panel2" or "panel1" } }
+                or key == "point" and { { text = fr and "Haut gauche" or "Top left", value = "TOPLEFT" }, { text = fr and "Haut" or "Top", value = "TOP" }, { text = fr and "Haut droite" or "Top right", value = "TOPRIGHT" }, { text = fr and "Gauche" or "Left", value = "LEFT" }, { text = fr and "Centre" or "Center", value = "CENTER" }, { text = fr and "Droite" or "Right", value = "RIGHT" }, { text = fr and "Bas gauche" or "Bottom left", value = "BOTTOMLEFT" }, { text = fr and "Bas" or "Bottom", value = "BOTTOM" }, { text = fr and "Bas droite" or "Bottom right", value = "BOTTOMRIGHT" } }
+                or key == "anchorSide" and { { text = fr and "En dessous" or "Below", value = "BOTTOM" }, { text = fr and "Au-dessus" or "Above", value = "TOP" }, { text = fr and "À gauche" or "Left", value = "LEFT" }, { text = fr and "À droite" or "Right", value = "RIGHT" } }
+                or key == "anchorAlign" and { { text = fr and "Début (gauche / haut)" or "Start (left / top)", value = "start" }, { text = fr and "Centre" or "Center", value = "center" }, { text = fr and "Fin (droite / bas)" or "End (right / bottom)", value = "finish" } }
+                or key == "content" and addon.contentTypes or key == "delvesSort" and { { text = fr and "Note" or "Grade", value = "grade" }, { text = fr and "Nom" or "Name", value = "name" } } or key == "style" and { { text = "Blizzard", value = "blizzard" }, { text = "Ayije", value = "ayije" }, { text = "Pixels", value = "pixels" } } or nil,
             get = function(layoutName) return Settings(id, layoutName)[key] end,
             set = function(layoutName, value)
+                if key == "point" then SaveFreePosition(panel, Settings(id, layoutName), value) end
+                if key == "anchorTarget" then
+                    if WouldCycle(id, value, layoutName) then DEFAULT_CHAT_FRAME:AddMessage("FunelQOL: " .. text.anchorCycle); return end
+                    if value == "screen" and Settings(id, layoutName).anchorTarget ~= "screen" then SaveFreePosition(panel, Settings(id, layoutName)) end
+                end
                 if key == "content" then addon.CloseContentEditor() end
                 Settings(id, layoutName)[key] = value
                 Render(panel)
@@ -742,6 +829,8 @@ function addon.InitializePanels()
         local default = { point = "TOPRIGHT", x = definition.x, y = definition.y }
         LEM:AddFrame(panel, function(_, layoutName, point, x, y)
             local settings = Settings(definition.id, layoutName)
+            -- Dragging / nudging deliberately releases the link, as in EUI movers.
+            settings.anchorTarget = "screen"
             settings.point, settings.x, settings.y = point, x, y
             Render(panel)
         end, default)
