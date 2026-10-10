@@ -17,7 +17,7 @@ C_TransmogCollection={
 }
 CreateFrame=function() return {RegisterEvent=function() end,SetScript=function() end} end
 local addon={panelText={},GetRaidSlotActions=function() return {},"unavailable",false end}
-for _,file in ipairs({"Content.lua","RaidSetContent.lua","RaidCollection.lua"}) do assert(loadfile(file))("FunelQOL",addon) end
+for _,file in ipairs({"Content.lua","RaidSetContent.lua","RaidAchievementData.lua", "RaidAchievementContent.lua", "RaidCollection.lua"}) do assert(loadfile(file))("FunelQOL",addon) end
 for _,difficulty in ipairs({14,15,16,17}) do
     GetInstanceInfo=function() return "Test Raid","raid",difficulty,"Difficulty",nil,nil,nil,2912 end
     local settings={content="raidcollection"}

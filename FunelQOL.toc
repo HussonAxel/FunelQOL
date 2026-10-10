@@ -24,6 +24,8 @@ DelveContent.lua
 ProgressContent.lua
 RaidAppearanceActions.lua
 RaidSetContent.lua
+RaidAchievementData.lua
+RaidAchievementContent.lua
 RaidCollection.lua
 ContentEditor.lua
 Panels.lua

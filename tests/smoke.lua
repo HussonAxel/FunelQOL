@@ -85,7 +85,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidAchievementData.lua", "RaidAchievementContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -166,7 +166,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidAchievementData.lua", "RaidAchievementContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -340,7 +340,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "CurrencyCatalog.lua", "CurrencyEditor.lua", "QuestContent.lua", "QuestXP.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "RaidAchievementData.lua", "RaidAchievementContent.lua", "RaidCollection.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -1987,6 +1987,11 @@ do
     }
     C_Item.IsItemDataCachedByID = function() return true end
     C_MountJournal = {GetMountFromItem=function(id) return id end,GetMountInfoByID=function() return nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,false end}
+    persistedAddon.raidAchievementData[555]={{id=101,category=10},{id=102,category=10}}
+    GetCategoryInfo=function() return "Raids", -1 end
+    GetAchievementInfo=function(id) return id,"Raid achievement "..id,10,id==102,nil,nil,nil,"Description",0,123,"Reward",false end
+    GetAchievementNumCriteria=function() return 2 end
+    GetAchievementCriteriaInfo=function(_,index) return "Criterion "..index,0,index==1,0,1 end
     local itemTooltip
     GameTooltip.SetHyperlink = function(_,link) itemTooltip=link end
     settings = FunelQOLCharDB.layouts[LEM.active].panel1
@@ -2000,6 +2005,21 @@ do
         if row.shown and row.data.raidCollectionLink then reward=reward or row end
     end
     assert(boss and reward)
+    local achievement
+    for _,row in ipairs(first.rows) do
+        if row.shown and row.data.raidAchievementID==101 then achievement=row end
+        assert(not (row.shown and row.data.raidAchievementID==102),"Completed raid achievement not hidden")
+    end
+    assert(achievement and achievement.data.valueText=="1 / 2")
+    local openedAchievement
+    ShowAchievementFrameForAchievement=function(id) openedAchievement=id end
+    achievement.scripts.OnClick(achievement,"LeftButton")
+    assert(openedAchievement==101,"Achievement row did not open Blizzard UI")
+    settings.raidCollection.categories.achievement=false
+    persistedAddon.RefreshPanels()
+    for _,row in ipairs(first.rows) do assert(not (row.shown and row.data.raidAchievementID),"Achievement filter ignored") end
+    settings.raidCollection.categories.achievement=true
+    persistedAddon.RefreshPanels()
     reward.scripts.OnEnter(reward)
     assert(itemTooltip==reward.data.raidCollectionLink)
     local previewLink

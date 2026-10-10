@@ -4,7 +4,9 @@ local text = addon.panelText
 text.raidCollection = fr and "Collection de raid" or "Raid collection"
 local groups = { [3]=2, [4]=2, [5]=3, [6]=3, [7]=1, [9]=2, [14]=2, [15]=3, [16]=4, [17]=1 }
 local labels = { set = fr and "Set" or "Set", mount = fr and "Monture" or "Mount", pet = fr and "Mascotte" or "Pet", toy = fr and "Jouet" or "Toy", appearance = fr and "Apparence" or "Appearance" }
+labels.achievement = fr and "Haut fait" or "Achievement"
 local colors = { set={.75,.4,1}, mount={1,.82,0}, pet={.3,1,.3}, toy={1,.55,.1}, appearance={.15,.8,1} }
+colors.achievement = {1,.82,0}
 local cache, scanning, pendingItems = {}, false, {}
 local activeSettings = setmetatable({}, {__mode="k"})
 local function HasActivePanel()
@@ -126,6 +128,7 @@ end
 -- Native previews accept uncollected rewards and retain difficulty bonus IDs.
 function addon.PreviewRaidCollectionReward(data)
     if not data or InCombatLockdown() then return false end
+    if data.raidAchievementID then return addon.OpenRaidAchievement(data) end
     if data.raidCollectionKind == "set" then return addon.PreviewRaidSet(data) end
     local preview
     if data.raidCollectionKind == "mount" then preview = DressUpMountLink
@@ -148,7 +151,7 @@ function addon.GetRaidCollectionRows(settings)
     local total, missing, loading = 0, 0, 0
     local function Add(key, title, entry, collected, unknown)
         if options.categories[entry.raidCollectionKind] == false then return end
-        local identity = entry.raidCollectionKind .. ":" .. (entry.raidCollectionItemID or entry.name)
+        local identity = entry.raidCollectionKind .. ":" .. (entry.raidCollectionItemID or entry.raidAchievementID or entry.name)
         if not seen[identity] then
             seen[identity] = true; total = total + 1
             if unknown then loading = loading + 1 elseif not collected then missing = missing + 1 end
@@ -156,7 +159,7 @@ function addon.GetRaidCollectionRows(settings)
         if collected and not options.showCollected then return end
         if not buckets[key] then buckets[key] = {title=title, entries={}}; bucketOrder[#bucketOrder+1] = key end
         entry.labelColor = unknown and {.65,.65,.65} or collected and {.3,1,.3} or colors[entry.raidCollectionKind]
-        entry.valueText = unknown and "…" or collected and "✓" or labels[entry.raidCollectionKind]
+        entry.valueText = unknown and "…" or collected and "✓" or entry.raidAchievementProgress or labels[entry.raidCollectionKind]
         entry.fitValue = true
         buckets[key].entries[#buckets[key].entries+1] = entry
     end
@@ -187,10 +190,16 @@ function addon.GetRaidCollectionRows(settings)
             elseif kind == nil then loading = loading + 1 end
         end
     end
+    if options.categories.achievement ~= false and addon.GetRaidAchievementRows then
+        for _, entry in ipairs(addon.GetRaidAchievementRows(context)) do
+            Add("achievements", fr and "Hauts faits" or "Achievements", entry, entry.raidAchievementCompleted, false)
+        end
+    end
     rows[1] = {name=fr and "Collection" or "Collection", valueText=(state or loading>0) and "…" or missing .. (fr and " manquants" or " missing"),
         gaugeMaximum=(state or loading>0) and 0 or total, gaugeValue=math.max(0,total-missing), fitValue=true, labelColor={.15,.8,1},
         tooltipLines={context.name .. " · " .. (context.difficultyName or ""),
             fr and "Collection du compte. Butin du journal Blizzard ; disponibilité non vérifiée." or "Account collection. Blizzard journal loot; availability not verified.",
+            fr and "Hauts faits standards du raid. Héritage, tours de force et restrictions saisonnières exclus." or "Ordinary raid achievements. Legacy, feats of strength and seasonal restrictions excluded.",
             (fr and "Données en chargement : " or "Loading entries: ") .. loading} }
     if state then
         rows[#rows+1] = {name=state=="journal" and (fr and "Fermez le journal pour charger le butin" or "Close the journal to load loot")
@@ -209,7 +218,7 @@ function addon.GetRaidCollectionRows(settings)
 end
 
 local events = CreateFrame("Frame")
-for _, event in ipairs({"EJ_LOOT_DATA_RECIEVED","GET_ITEM_INFO_RECEIVED","ITEM_DATA_LOAD_RESULT","NEW_MOUNT_ADDED","NEW_PET_ADDED","PET_JOURNAL_LIST_UPDATE","NEW_TOY_ADDED","TRANSMOG_COLLECTION_UPDATED","ZONE_CHANGED_NEW_AREA","PLAYER_ENTERING_WORLD","PLAYER_DIFFICULTY_CHANGED","BAG_UPDATE_DELAYED","PLAYER_EQUIPMENT_CHANGED"}) do events:RegisterEvent(event) end
+for _, event in ipairs({"EJ_LOOT_DATA_RECIEVED","GET_ITEM_INFO_RECEIVED","ITEM_DATA_LOAD_RESULT","NEW_MOUNT_ADDED","NEW_PET_ADDED","PET_JOURNAL_LIST_UPDATE","NEW_TOY_ADDED","TRANSMOG_COLLECTION_UPDATED","ZONE_CHANGED_NEW_AREA","PLAYER_ENTERING_WORLD","PLAYER_DIFFICULTY_CHANGED","BAG_UPDATE_DELAYED","PLAYER_EQUIPMENT_CHANGED","ACHIEVEMENT_EARNED","CRITERIA_UPDATE","RECEIVED_ACHIEVEMENT_LIST"}) do events:RegisterEvent(event) end
 local queued=false
 events:SetScript("OnEvent",function(_,event,itemID)
     if scanning then return end
@@ -236,7 +245,7 @@ function addon.OpenRaidCollectionEditor(settings, refresh)
     addon.CloseRaidCollectionEditor()
     local context, options=Context(settings)
     editor=CreateFrame("Frame",nil,UIParent,"BackdropTemplate")
-    editor:SetSize(430,320); editor:SetPoint("CENTER"); editor:SetFrameStrata("DIALOG")
+    editor:SetSize(430,350); editor:SetPoint("CENTER"); editor:SetFrameStrata("DIALOG")
     editor:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",edgeSize=16})
     editor:SetBackdropColor(.04,.04,.04,1)
     local title=editor:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
@@ -244,13 +253,13 @@ function addon.OpenRaidCollectionEditor(settings, refresh)
     local hint=editor:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
     hint:SetPoint("TOPLEFT",20,-48); hint:SetWidth(390); hint:SetJustifyH("LEFT")
     hint:SetText((context and context.name .. " · " .. (context.difficultyName or "") or (fr and "Entrez dans un raid pour charger ses récompenses." or "Enter a raid to load its rewards.")) .. "\n" .. (fr and "Difficulté du raid visité. Clic sur un boss : plier/déplier. Hauteur réglable en mode édition." or "Uses the visited raid's difficulty. Click a boss to fold/unfold. Height is adjustable in Edit Mode."))
-    local keys={"set","mount","pet","toy","appearance","collected"}
+    local keys={"set","mount","pet","toy","appearance","achievement","collected"}
     for index,key in ipairs(keys) do
         local check=CreateFrame("CheckButton",nil,editor,"UICheckButtonTemplate")
         check:SetSize(26,26); check:SetPoint("TOPLEFT",20,-95-(index-1)*28)
         check:SetChecked(key=="collected" and options.showCollected or key~="collected" and options.categories[key]~=false)
         local label=editor:CreateFontString(nil,"OVERLAY","GameFontHighlight")
-        label:SetPoint("LEFT",check,"RIGHT",6,0); label:SetText(labels[key] or (fr and "Afficher les objets déjà collectionnés" or "Show collected rewards"))
+        label:SetPoint("LEFT",check,"RIGHT",6,0); label:SetText(labels[key] or (fr and "Afficher les récompenses et hauts faits obtenus" or "Show collected rewards and completed achievements"))
         check:SetScript("OnClick",function(self)
             if key=="collected" then options.showCollected=self:GetChecked() else options.categories[key]=self:GetChecked() end
             refresh()
