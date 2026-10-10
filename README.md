@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.12.2 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.12.3 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -240,3 +240,5 @@ TUM is an optional dependency, loaded first when enabled. FunelQOL calls `Transm
 Smoke tests cover all three paths and their object locations/levels, unrelated upgrade visuals, shared/PvP exclusions, collection counts, inventory invalidation, cache warmup, missing/incompatible TUM APIs, native inline icons at narrow widths, complete outfit preview and combat/Edit Mode guards. Actual items and dressing-room rendering still require in-game validation.
 
 Menu headings, section titles and tracker row labels use bundled Noto Sans Bold (SIL Open Font License; see Media/Fonts/OFL.txt). Objective descriptions and numeric values retain their regular font.
+
+Currencies include a selectable grouped Crests row (Champion / Hero / Myth), showing three native currency icons and spendable quantities. Hover lists localized currency names and earned caps when supplied by Blizzard. Midnight seasons 1 and 2 are supported; IDs were verified against [client CurrencyTypes data](https://wago.tools/db2/CurrencyTypes/csv), excluding hidden counters. Add it through Configure rows; existing selections are preserved.

@@ -551,7 +551,7 @@ local function Render(panel)
         local valueInset, valueGap = Snap(8, pixel), Snap(8, pixel)
         row.value:ClearAllPoints()
         row.value:SetPoint("RIGHT", -valueInset, 0)
-        row.value:SetText(entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
+        row.value:SetText(entry.crestAmounts and addon.GetCrestText(entry.crestAmounts, settings.fontSize) or entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
         local compactIconSize = Snap(renown and 20 or entry.iconSize or 14, pixel)
         local iconSpace = compact and entry.icon and not entry.moneyAmount and compactIconSize + Snap(6, pixel) or 0
         if renown then row.value:SetPoint("RIGHT", -valueInset - iconSpace, 0) end
@@ -565,6 +565,7 @@ local function Render(panel)
                 moneyFontSize = moneyFontSize - 1
                 row.value:SetFont(STANDARD_TEXT_FONT, moneyFontSize, "OUTLINE")
                 if entry.moneyAmount then row.value:SetText(addon.GetMoneyText(entry.moneyAmount, moneyFontSize)) end
+                if entry.crestAmounts then row.value:SetText(addon.GetCrestText(entry.crestAmounts, moneyFontSize)) end
                 naturalWidth = row.value:GetUnboundedStringWidth()
             end
         end

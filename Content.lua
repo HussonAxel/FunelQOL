@@ -6,6 +6,7 @@ text.configure = fr and "Configurer les lignes" or "Configure rows"
 text.empty = fr and "Aucune ligne · configurer le contenu" or "No rows · configure content"
 text.none = fr and "Vide" or "Empty"
 text.money = fr and "Or" or "Money"
+text.crests = fr and "Écus · Champion / Héros / Mythe" or "Crests · Champion / Hero / Myth"
 text.label = fr and "Libellé" or "Label"
 text.value = fr and "Valeur" or "Value"
 text.hint = fr and "Choisis les lignes ; ↑ / ↓ changent leur ordre. Modifications enregistrées immédiatement." or "Choose rows; ↑ / ↓ change their order. Changes are saved immediately."
@@ -36,6 +37,7 @@ function addon.GetContentCatalog(kind)
     local rows = {}
     if kind == "currencies" then
         rows[1] = { id = -1, name = text.money, icon = 133784, valueText = C_CurrencyInfo.GetCoinTextureString(GetMoney()) }
+        rows[2] = { id = -2, name = text.crests }
         local seen = { [-1] = true }
         for index = 1, C_CurrencyInfo.GetCurrencyListSize() do
             local info = C_CurrencyInfo.GetCurrencyListInfo(index)
@@ -99,7 +101,43 @@ function addon.GetContentSelection(settings, catalog)
     return list
 end
 
+-- Spendable currencies (not their hidden earned-counter twins), verified in
+-- the client's CurrencyTypes DB2: https://wago.tools/db2/CurrencyTypes/csv
+local crestSeasons = { [17] = {3343,3345,3347}, [18] = {3444,3445,3446} }
+function addon.GetCrestText(entries, size)
+    local values = {}
+    for _, info in ipairs(entries) do
+        local icon = info.iconFileID and ("|T" .. info.iconFileID .. ":" .. size .. ":" .. size .. ":0:0|t ") or ""
+        values[#values + 1] = icon .. tostring(info.quantity or 0)
+    end
+    return table.concat(values, "  ")
+end
+local function Crests()
+    local season = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason()
+    if not season or season <= 0 then
+        local build = GetBuildInfo and select(4, GetBuildInfo())
+        season = build and build >= 120000 and build < 120200 and (build >= 120100 and 18 or 17)
+    end
+    local ids = crestSeasons[season]
+    local entries, lines = {}, {}
+    for _, id in ipairs(ids or {}) do
+        local info = C_CurrencyInfo.GetCurrencyInfo(id)
+        if info and info.name and info.name ~= "" then
+            entries[#entries + 1] = info
+            lines[#lines + 1] = info.name .. " : " .. tostring(info.quantity or 0)
+            if info.maxQuantity and info.maxQuantity > 0 and info.useTotalEarnedForMaxQty then
+                lines[#lines + 1] = (fr and "  Obtenus : " or "  Earned: ") .. tostring(info.totalEarned or 0) .. " / " .. info.maxQuantity
+            end
+        else
+            return { name = fr and "Écus" or "Crests", valueText = "…", tooltipLines = { fr and "Données de monnaie en cours de chargement." or "Currency data loading." } }
+        end
+    end
+    if not ids then return { name = fr and "Écus" or "Crests", valueText = "—", tooltipLines = { fr and "Saison non prise en charge." or "Unsupported season." } } end
+    return { name = fr and "Écus" or "Crests", crestAmounts = entries, valueText = addon.GetCrestText(entries, 14),
+        fitValue = true, compactColor = {1, .82, 0}, tooltipLines = lines }
+end
 local function Currency(id)
+    if id == -2 then return Crests() end
     if id == -1 then
         local amount = GetMoney()
         return { name = text.money, icon = 133784, moneyAmount = amount, valueText = C_CurrencyInfo.GetCoinTextureString(amount) }

@@ -1693,3 +1693,44 @@ actionRow = persistedAddon.GetPanelRows(actionsSettings)[1]
 assert(not next(actionRow.raidActionModes) and actionRow.value == 1 and actionRow.valueText == "1 / 4")
 assert(table.concat(actionRow.tooltipLines," "):find("Active Transmog Upgrade Master",1,true))
 print("PASS: TUM-backed owned-item upgrade/catalyst/combined routes, exact target visuals, item links/locations/breakpoints, shared/PvP exclusion, inventory caching/events/warmup, uncollected-only indicators, compact bounds, full-set dressing-room preview and combat/Edit Mode guards.")
+local originalCurrencyInfo, originalCrestSeason = C_CurrencyInfo.GetCurrencyInfo, C_MythicPlus.GetCurrentSeason
+local crestSeason, crestQuantity = 18, 1234
+C_MythicPlus.GetCurrentSeason = function() return crestSeason end
+local queriedCrests = {}
+C_CurrencyInfo.GetCurrencyInfo = function(id)
+    queriedCrests[id] = true
+    if id == 3444 or id == 3445 or id == 3446 or id == 3343 or id == 3345 or id == 3347 then
+        return { name = "Crest " .. id, quantity = crestQuantity, iconFileID = id + 7000000,
+            useTotalEarnedForMaxQty = true, totalEarned = 90, maxQuantity = 100 }
+    end
+    return originalCurrencyInfo(id)
+end
+local crestSettings = { content = "currencies", selections = { currencies = {-2,0,0,0,0,0,0,0} } }
+local crestRow = persistedAddon.GetPanelRows(crestSettings)[1]
+assert(#crestRow.crestAmounts == 3 and #crestRow.tooltipLines == 6 and crestRow.tooltipLines[2]:find("90 / 100",1,true))
+assert(queriedCrests[3444] and queriedCrests[3445] and queriedCrests[3446] and not queriedCrests[3439], "Crests use hidden counters instead of spendable balances")
+local crestChoice
+for _, entry in ipairs(persistedAddon.GetContentCatalog("currencies")) do if entry.id == -2 then crestChoice = entry.name end end
+assert(crestChoice == persistedAddon.panelText.crests)
+SetSetting(first,"content","currencies")
+FunelQOLCharDB.layouts[LEM.active].panel1.selections.currencies = {-2,0,0,0,0,0,0,0}
+persistedAddon.RefreshPanels()
+for _, style in ipairs({"pixels","ayije","blizzard"}) do
+    SetSetting(first,"style",style)
+    SetSetting(first,"width",180)
+    SetSetting(first,"fontSize",18)
+    assert(first.rows[1].value:GetUnboundedStringWidth() <= first.rows[1].value.width, "Grouped crest icons overflow narrow panel")
+end
+crestQuantity = 42
+progressEvents.scripts.OnEvent(progressEvents,"CURRENCY_DISPLAY_UPDATE")
+assert(first.rows[1].data.crestAmounts[1].quantity == 42, "Grouped crests do not refresh")
+crestSeason = 17
+crestRow = persistedAddon.GetPanelRows(crestSettings)[1]
+assert(crestRow.tooltipLines[1]:find("3343",1,true) and queriedCrests[3345] and queriedCrests[3347])
+crestSeason = 99
+assert(not persistedAddon.GetPanelRows(crestSettings)[1].crestAmounts, "Unknown season shows stale crests")
+crestSeason = 18
+C_CurrencyInfo.GetCurrencyInfo = function() return nil end
+assert(persistedAddon.GetPanelRows(crestSettings)[1].valueText == "…", "Unloaded currencies look like zero balances")
+C_CurrencyInfo.GetCurrencyInfo, C_MythicPlus.GetCurrentSeason = originalCurrencyInfo, originalCrestSeason
+print("PASS: grouped Champion/Hero/Myth crests, spendable seasonal IDs, editor choice, earned cap tooltip, live updates, narrow icon bounds and loading/unsupported season handling.")
