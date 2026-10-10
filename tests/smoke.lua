@@ -1251,7 +1251,7 @@ settings = FunelQOLCharDB.layouts[LEM.active].panel1
 settings.title = first.definition.title
 SetSetting(first, "content", "delvequests")
 local calls = persistedAddon.GetPanelRows(settings)
-assert(#calls == 10 and first.rows[10].shown and first.body.shown)
+assert(#calls == 14 and first.rows[14].shown and first.body.shown)
 local byID = {}
 for _, call in ipairs(calls) do
     assert(not byID[call.delveQuestID]); byID[call.delveQuestID] = call
@@ -1309,6 +1309,7 @@ C_QuestLog.IsQuestFlaggedCompleted = nil
 assert(persistedAddon.GetDelveQuestState(persistedAddon.delveRatings[1]).status == "unknown")
 C_QuestLog.IsQuestFlaggedCompleted = completionAPI
 for _, definition in ipairs(persistedAddon.delveRatings) do if definition.levelingQuestID then delveQuestStates[definition.levelingQuestID] = "turnedIn" end end
+for _, id in ipairs({89507, 95468, 90573, 89268, 92713}) do delveQuestStates[id] = "turnedIn" end
 SetSetting(first, "delveQuestsHideCompleted", true)
 assert(first.rows[1].data.name == "Toutes les quêtes sont rendues" and not first.rows[2].shown)
 settings.delvesSections = {}
