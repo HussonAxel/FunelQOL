@@ -551,7 +551,8 @@ local function Render(panel)
         local valueInset, valueGap = Snap(8, pixel), Snap(8, pixel)
         row.value:ClearAllPoints()
         row.value:SetPoint("RIGHT", -valueInset, 0)
-        row.value:SetText(entry.crestAmounts and addon.GetCrestText(entry.crestAmounts, settings.fontSize) or entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
+        local crestIconSize = 20
+        row.value:SetText(entry.crestAmounts and addon.GetCrestText(entry.crestAmounts, crestIconSize) or entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
         local compactIconSize = Snap(renown and 20 or entry.iconSize or 14, pixel)
         local iconSpace = compact and entry.icon and not entry.moneyAmount and compactIconSize + Snap(6, pixel) or 0
         if renown then row.value:SetPoint("RIGHT", -valueInset - iconSpace, 0) end
@@ -565,7 +566,17 @@ local function Render(panel)
                 moneyFontSize = moneyFontSize - 1
                 row.value:SetFont(STANDARD_TEXT_FONT, moneyFontSize, "OUTLINE")
                 if entry.moneyAmount then row.value:SetText(addon.GetMoneyText(entry.moneyAmount, moneyFontSize)) end
-                if entry.crestAmounts then row.value:SetText(addon.GetCrestText(entry.crestAmounts, moneyFontSize)) end
+                naturalWidth = row.value:GetUnboundedStringWidth()
+            end
+            -- Keep crest artwork independent of text sizing. Only extremely
+            -- narrow rows with large balances need a small icon adjustment.
+            while entry.crestAmounts and naturalWidth > availableWidth and crestIconSize > 16 do
+                crestIconSize = crestIconSize - 2
+                row.value:SetText(addon.GetCrestText(entry.crestAmounts, crestIconSize))
+                naturalWidth = row.value:GetUnboundedStringWidth()
+            end
+            if entry.crestAmounts and naturalWidth > availableWidth then
+                row.value:SetText(addon.GetCrestText(entry.crestAmounts, crestIconSize, true))
                 naturalWidth = row.value:GetUnboundedStringWidth()
             end
         end
@@ -579,6 +590,7 @@ local function Render(panel)
         row.label:SetTextColor(labelColor[1], labelColor[2], labelColor[3])
         if compact and not entry.moneyAmount then row.value:SetTextColor(labelColor[1], labelColor[2], labelColor[3]) end
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
+        if entry.crestAmounts then actualHeight = math.max(actualHeight, Snap(crestIconSize + 4, pixel)) end
         if compact and (entry.iconSize or renown) then actualHeight = math.max(actualHeight, compactIconSize + Snap(4, pixel)) end
         if tracker then
             if entry.isQuestHeader then

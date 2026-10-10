@@ -1724,6 +1724,10 @@ end
 crestQuantity = 42
 progressEvents.scripts.OnEvent(progressEvents,"CURRENCY_DISPLAY_UPDATE")
 assert(first.rows[1].data.crestAmounts[1].quantity == 42, "Grouped crests do not refresh")
+SetSetting(first,"width",300)
+SetSetting(first,"fontSize",10)
+assert(first.rows[1].value.text:find(":20:20:0:0|t",1,true), "Crest icons shrink with the text")
+assert(first.rows[1].height >= 24, "Large crest icons lack vertical padding")
 crestSeason = 17
 crestRow = persistedAddon.GetPanelRows(crestSettings)[1]
 assert(crestRow.tooltipLines[1]:find("3343",1,true) and queriedCrests[3345] and queriedCrests[3347])

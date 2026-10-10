@@ -104,13 +104,14 @@ end
 -- Spendable currencies (not their hidden earned-counter twins), verified in
 -- the client's CurrencyTypes DB2: https://wago.tools/db2/CurrencyTypes/csv
 local crestSeasons = { [17] = {3343,3345,3347}, [18] = {3444,3445,3446} }
-function addon.GetCrestText(entries, size)
+function addon.GetCrestText(entries, size, compact)
+    size = size or 20
     local values = {}
     for _, info in ipairs(entries) do
-        local icon = info.iconFileID and ("|T" .. info.iconFileID .. ":" .. size .. ":" .. size .. ":0:0|t ") or ""
+        local icon = info.iconFileID and ("|T" .. info.iconFileID .. ":" .. size .. ":" .. size .. ":0:0|t" .. (compact and "" or " ")) or ""
         values[#values + 1] = icon .. tostring(info.quantity or 0)
     end
-    return table.concat(values, "  ")
+    return table.concat(values, compact and " " or "  ")
 end
 local function Crests()
     local season = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason()
@@ -133,7 +134,7 @@ local function Crests()
         end
     end
     if not ids then return { name = fr and "Écus" or "Crests", valueText = "—", tooltipLines = { fr and "Saison non prise en charge." or "Unsupported season." } } end
-    return { name = fr and "Écus" or "Crests", crestAmounts = entries, valueText = addon.GetCrestText(entries, 14),
+    return { name = fr and "Écus" or "Crests", crestAmounts = entries, valueText = addon.GetCrestText(entries),
         fitValue = true, compactColor = {1, .82, 0}, tooltipLines = lines }
 end
 local function Currency(id)
