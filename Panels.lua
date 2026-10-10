@@ -445,10 +445,12 @@ local function Render(panel)
     panel:SetWidth(width)
     panel.header:SetHeight(headerHeight)
     local clipPadding = Snap(8, pixel)
-    local questInset = (settings.content == "quests" or delves) and clipPadding or 0
+    -- Compact rows share the body border: no vertical overscan into its header.
+    local verticalPadding = compact and 0 or clipPadding
+    local questInset = (settings.content == "quests" or delves) and verticalPadding or 0
     panel.viewport:ClearAllPoints()
-    panel.viewport:SetPoint("TOPLEFT", -clipPadding, -contentTop + clipPadding - questInset)
-    panel.viewport:SetPoint("TOPRIGHT", clipPadding, -contentTop + clipPadding - questInset)
+    panel.viewport:SetPoint("TOPLEFT", -clipPadding, -contentTop + verticalPadding - questInset)
+    panel.viewport:SetPoint("TOPRIGHT", clipPadding, -contentTop + verticalPadding - questInset)
     SetBackdrop(panel.header, style, settings.opacity, pixel, nil, compactSurface and compactBorderColor or nil)
     if compactSurface then
         SetBackdrop(panel.body, style, settings.opacity, pixel, nil, compactBorderColor)
@@ -543,7 +545,7 @@ local function Render(panel)
             currentGroup:Show()
         end
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", clipPadding + rowInset, -clipPadding - renderedHeight)
+        row:SetPoint("TOPLEFT", clipPadding + rowInset, -verticalPadding - renderedHeight)
         row:SetWidth(rowWidth)
         row:SetHeight(rowHeight)
         SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel(), entry.borderColor)
@@ -625,7 +627,7 @@ local function Render(panel)
             if entry.isQuestHeader then
                 renderedHeight = renderedHeight + Snap(questTracker and 10 or 8, pixel)
                 row:ClearAllPoints()
-                row:SetPoint("TOPLEFT", clipPadding + rowInset, -clipPadding - renderedHeight)
+                row:SetPoint("TOPLEFT", clipPadding + rowInset, -verticalPadding - renderedHeight)
             end
             actualHeight = LayoutTrackerRow(row, entry, settings, rowWidth, pixel, questTracker)
         elseif readable and (entry.isQuestHeader or entry.questObjective) then
@@ -734,12 +736,12 @@ local function Render(panel)
     for index = #data + 1, #panel.rows do panel.rows[index]:Hide() end
     local maximumHeight = delves and settings.delvesHeight or settings.questHeight
     local visibleHeight = (settings.content == "quests" or settings.content == "raidcollection" or delves) and math.min(renderedHeight, Snap(maximumHeight, pixel)) or renderedHeight
-    panel.content:SetSize(width + clipPadding * 2, renderedHeight + clipPadding * 2)
-    panel.viewport:SetHeight(visibleHeight + clipPadding * 2)
+    panel.content:SetSize(width + clipPadding * 2, renderedHeight + verticalPadding * 2)
+    panel.viewport:SetHeight(visibleHeight + verticalPadding * 2)
     panel.scrollMaximum = math.max(0, renderedHeight - visibleHeight)
     panel.viewport:SetVerticalScroll(math.min(panel.viewport:GetVerticalScroll(), panel.scrollMaximum))
     panel.scrollHint:ClearAllPoints()
-    panel.scrollHint:SetPoint("TOP", panel, "TOP", 0, -contentTop - visibleHeight - clipPadding - questInset)
+    panel.scrollHint:SetPoint("TOP", panel, "TOP", 0, -contentTop - visibleHeight - verticalPadding - questInset)
     panel.scrollHint:SetText(text.questScrollHint)
     panel.scrollHint:SetShown(not settings.collapsed and panel.scrollMaximum > 0)
     panel.content:SetShown(not settings.collapsed)

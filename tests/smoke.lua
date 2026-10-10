@@ -1999,6 +1999,24 @@ do
     SetSetting(first,"questHeight",150)
     SetSetting(first,"content","raidcollection")
     assert(first.title.text=="COLLECTION RAID" and first.body.shown and first.scrollMaximum>0)
+    -- The clipping rectangle must begin at the body edge, while row zero stays
+    -- flush with it. A partly scrolled row must never reach the title/gap.
+    for _,style in ipairs({"pixels","ayije","blizzard"}) do
+        for _,scale in ipairs({0.75,1,1.4}) do
+            SetSetting(first,"style",style)
+            SetSetting(first,"scale",scale)
+            local bodyTop = first.body.points[1][3]
+            local clipTop = first.viewport.points[1][3]
+            assert(clipTop <= bodyTop, "Raid scroll clipping rectangle extends behind the title")
+            assert(math.abs(clipTop + first.rows[1].point[3] - bodyTop) < 0.001, "First raid row gained a top margin")
+            assert(first.viewport.height <= settings.questHeight + 2, "Raid scroll clipping rectangle extends into the footer")
+            first.viewport.scripts.OnMouseWheel(first.viewport,-1)
+            assert(first.viewport:GetVerticalScroll()>0 and first.viewport:GetVerticalScroll()<=first.scrollMaximum)
+            first.viewport:SetVerticalScroll(first.scrollMaximum)
+            assert(first.viewport.points[1][3]==clipTop, "Scroll moved the clipping boundary")
+            first.viewport:SetVerticalScroll(0)
+        end
+    end
     local boss, reward
     for _,row in ipairs(first.rows) do
         if row.shown and row.data.raidCollectionBossKey=="boss:11" then boss=row end
