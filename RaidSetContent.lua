@@ -154,6 +154,7 @@ function addon.GetRaidSetRows(settings)
             local lines = { instance and instance.name or "Midnight · " .. (fr and "Saison " or "Season ") .. season.number, info and info.name or (fr and "Données en cours de chargement" or "Data loading"), fr and "Apparences du compte · classe actuelle" or "Account appearances · current class" }
             if instance then lines[#lines + 1] = (fr and "Difficulté actuelle : " or "Current difficulty: ") .. (instance.difficultyName or "?") end
             local collected, total, unknown = 0, 0, not info
+            local previewSources, actionModes, actionStatus, actionPending = {}, {}, nil, false
             for _, slot in ipairs(slots) do
                 local sources = api.GetSourcesForSlot(setID, slot[1])
                 -- Robes use a separate inventory type but occupy the same chest slot.
@@ -168,6 +169,7 @@ function addon.GetRaidSetRows(settings)
                 end
                 if not sources then unknown = true end
                 if sources and #sources > 0 then
+                    if sources[1].sourceID then previewSources[#previewSources + 1] = sources[1].sourceID end
                     total = total + 1
                     local state, itemID = "missing", nil
                     for _, source in ipairs(sources) do
@@ -184,14 +186,36 @@ function addon.GetRaidSetRows(settings)
                     if state == "unknown" then unknown = true end
                     local status = unlocked and (fr and "Débloqué" or "Collected") or state == "unknown" and (fr and "Chargement" or "Loading") or (fr and "Manquant" or "Missing")
                     if state == "shared" then status = status .. (fr and " (autre objet)" or " (other item)") end
-                    lines[#lines + 1] = (unlocked and "|cff4dff4d" or state == "unknown" and "|cffaaaaaa" or "|cffff7777") .. name .. " — " .. status .. "|r"
+                    local routes = {}
+                    if state == "missing" then
+                        local pending
+                        routes, actionStatus, pending = addon.GetRaidSlotActions(setID, slot[1], sources)
+                        actionPending = actionPending or pending
+                    end
+                    local color = unlocked and "ff4dff4d" or state == "unknown" and "ffaaaaaa" or "ffff7777"
+                    local available = {}
+                    for _, route in ipairs(routes) do available[route.mode] = true; actionModes[route.mode] = true end
+                    local primary = available.upgrade and "upgrade" or available.catalyst and "catalyst" or available.both and "both"
+                    if primary then
+                        color = addon.raidAppearanceModes[primary].color
+                        status = addon.GetRaidActionIcon(primary) .. " " .. addon.raidAppearanceModes[primary].name
+                    end
+                    lines[#lines + 1] = "|c" .. color .. name .. " — " .. status .. "|r"
+                    for _, route in ipairs(routes) do lines[#lines + 1] = "  " .. addon.GetRaidActionText(route) end
                 end
             end
             if total == 0 then unknown = true end
             if unknown then lines[#lines + 1] = fr and "Collection en cours de chargement ; le total sera affiché quand les données seront disponibles." or "Collection loading; the total will appear once data is available." end
             local complete = not unknown and collected == total
+            if actionStatus == "unavailable" then lines[#lines + 1] = fr and "Active Transmog Upgrade Master pour analyser les améliorations et la catalyse." or "Enable Transmog Upgrade Master to analyze upgrades and catalyst options."
+            elseif actionStatus == "loading" or actionPending then lines[#lines + 1] = fr and "Analyse des objets en cours de chargement…" or "Item analysis loading…"
+            elseif actionStatus == "partial" then lines[#lines + 1] = fr and "Analyse Transmog Upgrade Master incomplète." or "Transmog Upgrade Master analysis incomplete." end
+            if next(actionModes) then lines[#lines + 1] = fr and "Objets équipés et sacs du personnage. Possibilités d'apparence ; charges et monnaies non vérifiées." or "Current character's equipped items and bags. Appearance options; charges and currencies not checked." end
+            lines[#lines + 1] = fr and "Clic : prévisualiser l'ensemble" or "Click: preview the set"
+            local valueText = unknown and "…" or collected .. " / " .. total
+            for _, mode in ipairs({ "upgrade", "catalyst", "both" }) do if actionModes[mode] then valueText = valueText .. " " .. addon.GetRaidActionIcon(mode) end end
             rows[#rows + 1] = { name = (current and "» " or "") .. entry.name, raidSetID = setID, raidSetCurrent = current, value = collected, maximum = total,
-                valueText = unknown and "…" or collected .. " / " .. total, fitValue = true,
+                valueText = valueText, fitValue = true, raidActionModes = actionModes, raidPreviewSources = previewSources,
                 compactColor = complete and { .3, 1, .3 } or colors[difficulty or 1],
                 icon = complete and "Interface\\RaidFrame\\ReadyCheck-Ready" or 132143, tooltipLines = lines }
         end

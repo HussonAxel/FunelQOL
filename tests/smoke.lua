@@ -80,7 +80,7 @@ function LEM:AddFrame(frame, callback) self.positions[frame] = callback end
 function LEM:AddFrameSettingsButtons(frame, buttons) self.buttons = self.buttons or {}; self.buttons[frame] = buttons end
 function LEM:AddFrameSettings(frame, settings) self.settings[frame] = settings end
 local addon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", addon)
 end
 local core = frames[#frames]
@@ -161,7 +161,7 @@ assert(editOpened)
 SlashCmdList.FUNELQOL("greeting")
 assert(not FunelQOLDB.showGreeting)
 local newAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", newAddon)
 end
 local reloadedCore = frames[#frames]
@@ -333,7 +333,7 @@ newAddon.RefreshPanels()
 assert(settings.content == "preview")
 settings.content = "custom"
 local persistedAddon = { LibEditMode = LEM }
-for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
+for _, file in ipairs({ "Media.lua", "PanelPreview.lua", "Content.lua", "QuestContent.lua", "TrackerContent.lua", "DelveRatings.lua", "DelveQuestContent.lua", "DelveContent.lua", "ProgressContent.lua", "RaidAppearanceActions.lua", "RaidSetContent.lua", "ContentEditor.lua", "Panels.lua", "Core.lua" }) do
     assert(loadfile(file))("FunelQOL", persistedAddon)
 end
 local persistedCore = frames[#frames]
@@ -596,12 +596,16 @@ print("PASS: one group per quest, full-width larger titles, white/green objectiv
 -- Model inline texture widths instead of counting texture markup as letters.
 function methods:GetUnboundedStringWidth()
     local textureWidth = 0
-    local plain = (self.text or ""):gsub("|T([^|]+)|t", function(tag)
+    local plain = (self.text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|A:([^|]+)|a", function(tag)
+        local width = tag:match("^[^:]+:(%d+)")
+        textureWidth = textureWidth + (tonumber(width) or 14)
+        return ""
+    end):gsub("|T([^|]+)|t", function(tag)
         local height, width = tag:match("^[^:]+:(%d+):(%d+)")
         textureWidth = textureWidth + (tonumber(width) ~= 0 and tonumber(width) or self.fontSize or 14)
         return ""
     end)
-    return #plain * (self.fontSize or 11) * 0.55 + textureWidth
+    return (utf8.len(plain) or #plain) * (self.fontSize or 11) * 0.55 + textureWidth
 end
 function methods:GetStringWidth()
     return math.min(self.width or math.huge, self:GetUnboundedStringWidth())
@@ -1560,3 +1564,116 @@ current.panel1.anchorTarget, current.panel2.anchorTarget = "panel2", "panel1"
 persistedAddon.RefreshPanels()
 assert(current.panel1.anchorTarget == "screen" and current.panel2.anchorTarget == "panel1", "Corrupt saved cycle reaches the frame engine")
 print("PASS: persistent panel edge anchors, open/collapsed stacking, all four sides and three alignments at different scales, spacing/cross-offset geometry, nine screen anchors, cycle protection, detach/drag without jumps and layout-copy isolation.")
+
+local function OwnedLink(id) return "|cffa335ee|Hitem:" .. id .. "|h[Objet " .. id .. "]|h|r" end
+local ownedBags = { OwnedLink(7002), OwnedLink(7003), OwnedLink(7004), OwnedLink(7005), OwnedLink(7006) }
+function GetInventoryItemLink(_, slot) return slot == 1 and OwnedLink(7001) or nil end
+NUM_BAG_SLOTS = 4
+C_Container = { GetContainerNumSlots = function(bag) return bag == 0 and #ownedBags or 0 end,
+    GetContainerItemLink = function(_, slot) return ownedBags[slot] end }
+local appearanceCollected, analysisCalls, warm = {}, 0, true
+C_TransmogCollection.GetSourceInfo = function(id) return { visualID = id, itemID = id + 20000, isCollected = appearanceCollected[id] or false } end
+C_TransmogCollection.GetAllAppearanceSources = function(id) return { id } end
+C_TransmogSets.GetSourcesForSlot = function(id, slot)
+    if id == 5858 then
+        local map = { [1] = 2001, [3] = 2002, [20] = 2003, [6] = 2004 }
+        return map[slot] and { { sourceID = map[slot] } } or {}
+    end
+    return {}
+end
+C_Item.GetItemUpgradeInfo = function() return { currentLevel = 2, maxLevel = 8 } end
+TransmogUpgradeMaster = {
+    data = { constants = { upgradeTransmogBreakpoints = { [18] = 6 } } },
+    GetSetsForClass = function(_, class, season) assert(class == 8); return season == 18 and {5857,5858,5859,5860} or nil end,
+    GetSourceIDsForItemID = function(_, id) return { [2] = id == 7001 and 2001 or 9999 } end,
+}
+TransmogUpgradeMaster_API = {
+    IsCacheWarmedUp = function() return warm end,
+    GetAppearanceMissingData = function(link)
+        analysisCalls = analysisCalls + 1
+        local id = tonumber(link:match("item:(%d+)"))
+        local data = { canUpgrade = true, canCatalyse = true,
+            contextData = { itemID = id, seasonID = 18, tier = id == 7002 and 2 or 1,
+                slot = id == 7001 and 1 or id == 7002 and 3 or id == 7003 and 20 or id == 7005 and 9 or 6,
+                isPvpItem = id == 7006 } }
+        data.upgradeAppearanceMissing = id == 7001 or id == 7004
+        data.catalystAppearanceMissing = id == 7002 or id == 7005 or id == 7006
+        data.catalystAppearanceLearnedFromOtherItem = id == 7005
+        data.catalystUpgradeAppearanceMissing = id == 7003 or id == 7006
+        return data
+    end,
+}
+persistedAddon.InvalidateRaidActions()
+local actionsSettings = { content = "raidsets", selections = { raidsets = {2,0,0,0,0,0,0,0} } }
+local actionRow = persistedAddon.GetPanelRows(actionsSettings)[1]
+assert(actionRow.raidActionModes.upgrade and actionRow.raidActionModes.catalyst and actionRow.raidActionModes.both)
+assert(actionRow.value == 0 and actionRow.maximum == 4, "Potential appearances counted as already collected")
+local actionHover = table.concat(actionRow.tooltipLines, " ")
+assert(actionHover:find("7001",1,true) and actionHover:find("7002",1,true) and actionHover:find("7003",1,true))
+assert(not actionHover:find("7004",1,true) and not actionHover:find("7005",1,true) and not actionHover:find("7006",1,true), "Unrelated/shared/PvP appearances advertised")
+assert(actionHover:find("2 → 6 / 8",1,true) and actionHover:find("Équipé",1,true) and actionHover:find("Sac 0",1,true))
+assert(actionHover:find("ffffaa44",1,true) and actionHover:find("ffcc88ff",1,true) and actionHover:find("ffffdd44",1,true))
+persistedAddon.GetPanelRows(actionsSettings)
+assert(analysisCalls == 6, "Owned inventory reanalyzed for every set/slot")
+local previewIDs
+function DressUpTransmogSet(ids) previewIDs = ids end
+assert(persistedAddon.PreviewRaidSet(actionRow) and #previewIDs == 4 and previewIDs[3] == 2003)
+combat = true
+previewIDs = nil
+assert(not persistedAddon.PreviewRaidSet(actionRow) and not previewIDs)
+combat = false
+SetSetting(first, "content", "raidsets")
+local function NormalSet() for _, row in ipairs(first.rows) do if row.shown and row.data.raidSetID == 5858 then return row end end end
+local normal = NormalSet()
+normal.scripts.OnClick(normal)
+assert(previewIDs and #previewIDs == 4)
+previewIDs = nil
+LEM.callbacks.enter()
+NormalSet().scripts.OnClick(NormalSet())
+assert(not previewIDs, "Edit Mode click opens dressing room")
+LEM.callbacks.exit()
+appearanceCollected[2001] = true
+progressEvents.scripts.OnEvent(progressEvents, "TRANSMOG_COLLECTION_UPDATED")
+assert(NormalSet().data.value == 1 and not NormalSet().data.raidActionModes.upgrade)
+ownedBags = {}
+progressEvents.scripts.OnEvent(progressEvents, "BAG_UPDATE_DELAYED")
+assert(not NormalSet().data.raidActionModes.catalyst and not NormalSet().data.raidActionModes.both, "Removed item remains actionable")
+warm = false
+persistedAddon.InvalidateRaidActions()
+persistedAddon.RefreshPanels()
+assert(persistedAddon.raidUpgradePending and table.concat(NormalSet().data.tooltipLines," "):find("chargement",1,true))
+warm = true
+ownedBags = { OwnedLink(7002), OwnedLink(7003) }
+progressEvents.scripts.OnUpdate(progressEvents, 2)
+assert(NormalSet().data.raidActionModes.catalyst and not persistedAddon.raidUpgradePending)
+-- Renderer keeps inline action marks within the measured value area.
+local oldAtlasInfo = C_Texture.GetAtlasInfo
+C_Texture.GetAtlasInfo = function(atlas)
+    if atlas == "CreationCatalyst-32x32" or atlas == "CovenantSanctum-Upgrade-Icon-Available" then return {} end
+    return oldAtlasInfo(atlas)
+end
+assert(persistedAddon.GetRaidActionIcon("both"):find("|A:",1,true))
+for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
+    SetSetting(first,"style",style)
+    for _, width in ipairs({180,420}) do
+        SetSetting(first,"width",width)
+        for _, fontSize in ipairs({10,18}) do
+            SetSetting(first,"fontSize",fontSize)
+            local row = NormalSet()
+            assert(row.value.width >= row.value:GetUnboundedStringWidth())
+            row.scripts.OnEnter(row)
+        end
+    end
+end
+local originalActionAPI = TransmogUpgradeMaster_API
+TransmogUpgradeMaster_API = { IsCacheWarmedUp = function() return true end, GetAppearanceMissingData = function() error("Changed TUM API") end }
+persistedAddon.InvalidateRaidActions()
+actionRow = persistedAddon.GetPanelRows(actionsSettings)[1]
+assert(not next(actionRow.raidActionModes) and table.concat(actionRow.tooltipLines," "):find("incomplète",1,true))
+TransmogUpgradeMaster_API = originalActionAPI
+TransmogUpgradeMaster_API = nil
+persistedAddon.InvalidateRaidActions()
+actionRow = persistedAddon.GetPanelRows(actionsSettings)[1]
+assert(not next(actionRow.raidActionModes) and actionRow.value == 1 and actionRow.valueText == "1 / 4")
+assert(table.concat(actionRow.tooltipLines," "):find("Active Transmog Upgrade Master",1,true))
+print("PASS: TUM-backed owned-item upgrade/catalyst/combined routes, exact target visuals, item links/locations/breakpoints, shared/PvP exclusion, inventory caching/events/warmup, uncollected-only indicators, compact bounds, full-set dressing-room preview and combat/Edit Mode guards.")

@@ -260,7 +260,9 @@ local function CreateRow(panel)
     end)
     row:SetScript("OnClick", function(self)
         if editing then return end
-        if self.data.trackerSection then
+        if self.data.raidSetID then
+            addon.PreviewRaidSet(self.data)
+        elseif self.data.trackerSection then
             local settings = Settings(panel.definition.id)
             local key = self.data.trackerSection
             local sections = self.data.delveSection and settings.delvesSections or settings.questSections
@@ -656,6 +658,7 @@ end
 
 function addon.RefreshPanels()
     addon.questHasTimers = false
+    addon.raidUpgradePending = false
     for _, panel in ipairs(panels) do Render(panel) end
 end
 
@@ -852,11 +855,12 @@ function addon.InitializePanels()
     end
     events:RegisterEvent("ACHIEVEMENT_EARNED")
     events:RegisterEvent("CRITERIA_UPDATE")
-    for _, event in ipairs({ "PLAYER_DIFFICULTY_CHANGED", "TRANSMOG_COLLECTION_UPDATED", "CHALLENGE_MODE_MAPS_UPDATE", "WEEKLY_REWARDS_UPDATE", "WEEKLY_REWARDS_ITEM_CHANGED", "UPDATE_FACTION",
+    for _, event in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_DIFFICULTY_CHANGED", "TRANSMOG_COLLECTION_UPDATED", "CHALLENGE_MODE_MAPS_UPDATE", "WEEKLY_REWARDS_UPDATE", "WEEKLY_REWARDS_ITEM_CHANGED", "UPDATE_FACTION",
         "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "MAJOR_FACTION_UNLOCKED", "GET_ITEM_INFO_RECEIVED" }) do events:RegisterEvent(event) end
     local delveEvents = { AREA_POIS_UPDATED = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true,
         ACTIVE_DELVE_DATA_UPDATE = true, UPDATE_ALL_UI_WIDGETS = true, ACHIEVEMENT_EARNED = true, CRITERIA_UPDATE = true }
     events:SetScript("OnEvent", function(_, event, info)
+        if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "GET_ITEM_INFO_RECEIVED" or event == "PLAYER_ENTERING_WORLD" or event == "TRANSMOG_COLLECTION_UPDATED" then addon.InvalidateRaidActions() end
         if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" or event == "TRANSMOG_COLLECTION_UPDATED" then addon.InvalidateRaidSets() end
         if event == "UPDATE_UI_WIDGET" then
             if not addon.IsDelveWidget(info and info.widgetID) then return end
@@ -866,9 +870,13 @@ function addon.InitializePanels()
     end)
     local elapsed = 0
     events:SetScript("OnUpdate", function(_, delta)
-        if not addon.questHasTimers then elapsed = 0; return end
+        if not addon.questHasTimers and not addon.raidUpgradePending then elapsed = 0; return end
         elapsed = elapsed + delta
-        if elapsed >= 1 then elapsed = 0; addon.RefreshPanels() end
+        if elapsed >= (addon.questHasTimers and 1 or 2) then
+            elapsed = 0
+            if addon.raidUpgradePending then addon.InvalidateRaidActions() end
+            addon.RefreshPanels()
+        end
     end)
     -- UIParent:SetScale can be called directly by UI addons without a CVar event.
     hooksecurefunc(UIParent, "SetScale", addon.RefreshPanels)
