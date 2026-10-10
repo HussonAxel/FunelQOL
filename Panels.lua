@@ -543,7 +543,7 @@ local function Render(panel)
         if compactGauge then row.bar:SetStatusBarColor(gaugeColor[1], gaugeColor[2], gaugeColor[3], 0.3)
         else row.bar:SetStatusBarColor(0.12, 0.42, 0.62, 0.65) end
         DisableTextureSnapping(row.bar:GetStatusBarTexture())
-        local padding = Snap(3, pixel)
+        local padding = compactGauge and 0 or Snap(3, pixel)
         row.bar:ClearAllPoints()
         row.bar:SetPoint("TOPLEFT", padding, -padding)
         row.bar:SetPoint("BOTTOMRIGHT", -padding, padding)

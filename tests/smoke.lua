@@ -1770,6 +1770,7 @@ for _, style in ipairs({"pixels","ayije","blizzard"}) do
     for _, width in ipairs({180,420}) do
         SetSetting(first,"width",width)
         assert(first.rows[1].bar.shown and first.rows[1].bar.points[1][1] == "TOPLEFT" and first.rows[1].bar.points[2][1] == "BOTTOMRIGHT")
+        assert(first.rows[1].bar.points[1][2] == 0 and first.rows[1].bar.points[1][3] == 0 and first.rows[1].bar.points[2][2] == 0 and first.rows[1].bar.points[2][3] == 0, "Compact gauges retain unnecessary margins")
     end
 end
 visualSettings.showBars = false

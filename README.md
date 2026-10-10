@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.13.0 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.13.1 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -254,3 +254,5 @@ Panel collapse controls use a custom two-stroke green chevron in a fixed square 
 Background opacity defaults to 80%. Existing per-layout panel settings migrate once to 80%, then later user opacity adjustments are preserved. Borders, icons and text retain their opacity. Compact rows now show subtle tinted background gauges for renown toward the next level (full at maximum, absent for locked/unknown factions), class raid-set collection, profession skill and each Great Vault activity threshold. Counts and reward item levels remain visible, and the current linear Vault layout is retained. These gauges respect the existing Show bars setting in Edit Mode; balance-only currencies, grouped crests, money, talents and custom text do not acquire artificial progress goals. Unknown raid collection data has no gauge.
 
 Verified against the supplied video reference, with smoke checks covering migration, subsequent opacity edits, renown states, bounds across all styles, toggles, other providers and exclusions. In-game visual validation remains necessary.
+
+Version 0.13.1 removes inner padding from compact progress gauges so their fill covers the complete row. Text and icon padding remains in place.
