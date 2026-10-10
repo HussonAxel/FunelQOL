@@ -2,6 +2,8 @@ local _, addon = ...
 local fr = GetLocale() == "frFR"
 local text = addon.panelText
 text.raidSetsHint = fr and "Choisis les difficultés. Chaque ligne compte les emplacements d'apparence débloqués pour ta classe ; survole pour voir les pièces. Collection du compte, y compris les apparences identiques apprises via un autre objet." or "Choose difficulties. Each row counts collected appearance slots for your class; hover for pieces. Account collection, including identical appearances learned from other items."
+text.raidSetsFollowInstance = fr and "Adapter au raid visité" or "Follow current raid"
+text.raidSetsHint = text.raidSetsHint .. (fr and " En raid, adaptation automatique si activée ; » indique la difficulté actuelle." or " In raids, follows the instance when enabled; » marks the current difficulty.")
 
 -- Client transmog-set IDs, in LFR / Normal / Heroic / Mythic order.
 -- Verified against the installed Transmog Upgrade Master v1.5.27 data.
@@ -9,6 +11,8 @@ local seasons = {
     [17] = { number = 1, bases = { 5465, 5445, 5433, 5453, 5449, 5417, 5457, 5437, 5461, 5441, 5425, 5421, 5429 } },
     [18] = { number = 2, bases = { 5885, 5865, 5853, 5873, 5869, 5837, 5877, 5857, 5881, 5861, 5845, 5841, 5849 } },
 }
+-- Game-map IDs verified against the installed BigWigs raid modules.
+local raidSeasons = { [2912] = 17, [2913] = 17, [2939] = 17, [3004] = 18 }
 local difficulties = { fr and "Outil Raids" or "Raid Finder", fr and "Normal" or "Normal", fr and "Héroïque" or "Heroic", fr and "Mythique" or "Mythic" }
 local colors = { { .3, .8, 1 }, { .3, 1, .3 }, { .75, .4, 1 }, { 1, .55, .1 } }
 -- InventoryType values, not equipped inventory-slot indices.
@@ -19,6 +23,70 @@ local slots = {
     { 9, "WRISTSLOT", "Poignets", "Wrists" }, { 10, "HANDSSLOT", "Mains", "Hands" },
     { 16, "BACKSLOT", "Dos", "Back" },
 }
+
+local difficultyGroups = { [3] = 2, [4] = 2, [5] = 3, [6] = 3, [7] = 1, [9] = 2, [14] = 2, [15] = 3, [16] = 4, [17] = 1 }
+local raidCache
+function addon.InvalidateRaidSets() raidCache = nil end
+
+local function Instance(settings)
+    if settings.raidSetsFollowInstance == false or not GetInstanceInfo then return end
+    local name, kind, difficultyID, difficultyName, _, _, _, mapID = GetInstanceInfo()
+    if kind == "raid" then return { name = name, mapID = mapID, difficultyID = difficultyID,
+        difficultyName = difficultyName, difficulty = difficultyGroups[difficultyID] } end
+end
+
+function addon.GetRaidSetTitle(settings)
+    local instance = Instance(settings)
+    return instance and instance.name
+end
+
+local function Difficulty(info)
+    -- Compare client-localized descriptions with client-localized difficulty names.
+    for id, group in pairs(difficultyGroups) do
+        local name = GetDifficultyInfo and GetDifficultyInfo(id)
+        if name and info.description == name then return group, id end
+    end
+    for index, global in ipairs({ "PLAYER_DIFFICULTY3", "PLAYER_DIFFICULTY1", "PLAYER_DIFFICULTY2", "PLAYER_DIFFICULTY6" }) do
+        if _G[global] and info.description == _G[global] then return index end
+    end
+end
+
+local function InstanceSets(instance, classID, api)
+    if raidCache and raidCache.mapID == instance.mapID and raidCache.name == instance.name and raidCache.classID == classID then return raidCache.sets end
+    local entries, seen = {}, {}
+    local function Add(info)
+        if not info or seen[info.setID] then return end
+        seen[info.setID] = true
+        local group, difficultyID = Difficulty(info)
+        if not info.description then group = 2 end
+        entries[#entries + 1] = { setID = info.setID, difficulty = group, difficultyID = difficultyID,
+            name = info.description or difficulties[group or 2], info = info }
+    end
+    -- The journal's raid label is localized just like GetInstanceInfo. GetAllSets
+    -- avoids changing the player's wardrobe class/search/collection filters.
+    local all = api.GetAllSets and api.GetAllSets()
+    for _, info in ipairs(all or {}) do
+        if info.classMask == 2 ^ (classID - 1) and info.label == instance.name then
+            Add(info)
+            local baseID = info.baseSetID and info.baseSetID > 0 and info.baseSetID or info.setID
+            for _, variant in ipairs(api.GetVariantSets and api.GetVariantSets(baseID) or {}) do Add(variant) end
+        end
+    end
+    -- Midnight's tier sets can span raids; their label need not equal a raid name.
+    local season = seasons[raidSeasons[instance.mapID]]
+    if #entries == 0 and season then
+        for difficulty = 1, 4 do
+            local id = season.bases[classID] + difficulty - 1
+            entries[#entries + 1] = { setID = id, difficulty = difficulty, name = difficulties[difficulty], info = api.GetSetInfo(id) }
+        end
+    end
+    table.sort(entries, function(a, b)
+        local x, y = a.difficulty or 5, b.difficulty or 5
+        return x == y and a.setID < b.setID or x < y
+    end)
+    if all and #all > 0 or #entries > 0 then raidCache = { mapID = instance.mapID, name = instance.name, classID = classID, sets = entries } end
+    return entries
+end
 
 local function CurrentSeason()
     local id = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason()
@@ -37,9 +105,10 @@ end
 
 function addon.GetRaidSetRows(settings)
     local season = CurrentSeason()
+    local instance = Instance(settings)
     local classID = UnitClass and select(3, UnitClass("player"))
     local api, collection = C_TransmogSets, C_TransmogCollection
-    if not season or not classID or not season.bases[classID] or not api or not api.GetSetInfo or not api.GetSourcesForSlot or not collection or not collection.GetSourceInfo or not collection.GetAllAppearanceSources then
+    if not classID or (not instance and (not season or not season.bases[classID])) or not api or not api.GetSetInfo or not api.GetSourcesForSlot or not collection or not collection.GetSourceInfo or not collection.GetAllAppearanceSources then
         return { { name = fr and "Sets de la saison indisponibles" or "Season sets unavailable", tooltipLines = { fr and "Saison non prise en charge ou données de collection en cours de chargement." or "Unsupported season or collection data still loading." } } }
     end
     local rows, sourceCache = {}, {}
@@ -58,13 +127,32 @@ function addon.GetRaidSetRows(settings)
         return state, info
     end
     local selected = addon.GetContentSelection(settings, addon.GetRaidSetCatalog())
+    local entries = {}
+    if instance then
+        entries = InstanceSets(instance, classID, api)
+        if #entries == 0 then
+            return { { name = fr and "Aucun set identifié pour ta classe" or "No class set identified", tooltipLines = { instance.name,
+                fr and "Aucun set de classe associé à ce raid dans les données disponibles. Le suivi de la saison reprend à la sortie." or "No class set associated with this raid in available data. Season tracking resumes outside." } } }
+        end
+    else
+        for _, difficulty in ipairs(selected) do
+            if difficulties[difficulty] then entries[#entries + 1] = { setID = season.bases[classID] + difficulty - 1, difficulty = difficulty, name = difficulties[difficulty] } end
+        end
+    end
+    local enabled = {}
+    for _, difficulty in ipairs(selected) do enabled[difficulty] = true end
     local seen = {}
-    for _, difficulty in ipairs(selected) do
-        if difficulties[difficulty] and not seen[difficulty] then
-            seen[difficulty] = true
-            local setID = season.bases[classID] + difficulty - 1
+    for _, entry in ipairs(entries) do
+        local difficulty = entry.difficulty
+        -- Unknown legacy variant labels remain visible rather than being guessed.
+        if (not difficulty or enabled[difficulty] or instance and difficulty == instance.difficulty) and not seen[entry.setID] then
+            seen[entry.setID] = true
+            local setID = entry.setID
             local info = api.GetSetInfo(setID)
-            local lines = { "Midnight · " .. (fr and "Saison " or "Season ") .. season.number, info and info.name or (fr and "Données en cours de chargement" or "Data loading"), fr and "Apparences du compte · classe actuelle" or "Account appearances · current class" }
+            local current = instance and (info and info.description == instance.difficultyName or
+                (not entry.difficultyID or entry.difficultyID >= 14) and difficulty and difficulty == instance.difficulty)
+            local lines = { instance and instance.name or "Midnight · " .. (fr and "Saison " or "Season ") .. season.number, info and info.name or (fr and "Données en cours de chargement" or "Data loading"), fr and "Apparences du compte · classe actuelle" or "Account appearances · current class" }
+            if instance then lines[#lines + 1] = (fr and "Difficulté actuelle : " or "Current difficulty: ") .. (instance.difficultyName or "?") end
             local collected, total, unknown = 0, 0, not info
             for _, slot in ipairs(slots) do
                 local sources = api.GetSourcesForSlot(setID, slot[1])
@@ -102,9 +190,9 @@ function addon.GetRaidSetRows(settings)
             if total == 0 then unknown = true end
             if unknown then lines[#lines + 1] = fr and "Collection en cours de chargement ; le total sera affiché quand les données seront disponibles." or "Collection loading; the total will appear once data is available." end
             local complete = not unknown and collected == total
-            rows[#rows + 1] = { name = difficulties[difficulty], raidSetID = setID, value = collected, maximum = total,
+            rows[#rows + 1] = { name = (current and "» " or "") .. entry.name, raidSetID = setID, raidSetCurrent = current, value = collected, maximum = total,
                 valueText = unknown and "…" or collected .. " / " .. total, fitValue = true,
-                compactColor = complete and { .3, 1, .3 } or colors[difficulty],
+                compactColor = complete and { .3, 1, .3 } or colors[difficulty or 1],
                 icon = complete and "Interface\\RaidFrame\\ReadyCheck-Ready" or 132143, tooltipLines = lines }
         end
     end

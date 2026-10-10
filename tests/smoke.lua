@@ -1394,3 +1394,75 @@ for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
 end
 persistedAddon.ConfigurePanel(1)
 print("PASS: current-season raid sets for all classes and four difficulties, account/shared appearances, duplicate-source and robe grouping, live collection updates, selection ordering, loading/unsupported states and compact rendering in all styles.")
+
+-- Automatic instance context must be independent of the current season and of
+-- the user's shared wardrobe / encounter-journal filters.
+local raidInstance = { name = "Gouffre venimeux", kind = "raid", difficulty = 16, mapID = 3004 }
+local difficultyNames = { [3] = "10 joueurs", [4] = "25 joueurs", [5] = "10 joueurs héroïque", [6] = "25 joueurs héroïque",
+    [7] = "Outil Raids", [9] = "40 joueurs", [14] = "Normal", [15] = "Héroïque", [16] = "Mythique", [17] = "Outil Raids" }
+function GetDifficultyInfo(id) return difficultyNames[id] end
+function GetInstanceInfo() return raidInstance.name, raidInstance.kind, raidInstance.difficulty,
+    difficultyNames[raidInstance.difficulty], 0, false, false, raidInstance.mapID end
+local allSetCalls = 0
+local legacySets = {
+    { setID = 201, name = "Ancien set", label = "Citadelle test", description = "Normal", classMask = 128 },
+    { setID = 202, name = "Ancien set", label = "Citadelle test", description = "Héroïque", classMask = 128 },
+    { setID = 203, name = "Ancien set", label = "Citadelle test", description = "Mythique", classMask = 128 },
+    { setID = 204, name = "Autre classe", label = "Citadelle test", description = "Mythique", classMask = 1 },
+    { setID = 205, name = "PvP", label = "Saison PvP", description = "Gladiateur", classMask = 128 },
+    { setID = 206, name = "Ancien format", label = "Raid ancien", description = "10 joueurs héroïque", classMask = 128 },
+    { setID = 207, name = "Ancien format", label = "Raid ancien", description = "25 joueurs héroïque", classMask = 128 },
+}
+C_TransmogSets.GetAllSets = function() allSetCalls = allSetCalls + 1; return legacySets end
+C_TransmogSets.GetVariantSets = function() return {} end
+local priorSetInfo = C_TransmogSets.GetSetInfo
+C_TransmogSets.GetSetInfo = function(id)
+    for _, info in ipairs(legacySets) do if info.setID == id then return info end end
+    return priorSetInfo(id)
+end
+local contextSettings = { content = "raidsets" }
+persistedAddon.InvalidateRaidSets()
+local instanceRows = persistedAddon.GetPanelRows(contextSettings)
+assert(#instanceRows == 4 and instanceRows[4].raidSetCurrent and instanceRows[4].name == "» Mythique")
+assert(persistedAddon.GetRaidSetTitle(contextSettings) == raidInstance.name)
+contextSettings.selections.raidsets = { 1, 0, 0, 0, 0, 0, 0, 0 }
+instanceRows = persistedAddon.GetPanelRows(contextSettings)
+assert(#instanceRows == 2 and instanceRows[2].raidSetID == 5860, "Current difficulty hidden by saved selection")
+assert(allSetCalls == 1, "Raid metadata rescanned on every render")
+raidInstance.mapID, raidInstance.name = 2912, "Flèche du Vide"
+instanceRows = persistedAddon.GetPanelRows(contextSettings)
+assert(instanceRows[1].raidSetID == 5437 and instanceRows[2].raidSetID == 5440, "Entering an older raid keeps current-season set")
+raidInstance.mapID, raidInstance.name, raidInstance.difficulty = 888, "Citadelle test", 15
+contextSettings.selections = nil
+instanceRows = persistedAddon.GetPanelRows(contextSettings)
+assert(#instanceRows == 3 and instanceRows[1].raidSetID == 201 and instanceRows[2].raidSetCurrent and instanceRows[3].raidSetID == 203)
+assert(instanceRows[2].tooltipLines[1] == "Citadelle test" and instanceRows[2].tooltipLines[4]:find("Héroïque", 1, true))
+raidSeason = 19
+assert(persistedAddon.GetPanelRows(contextSettings)[1].raidSetID == 201, "Live season blocks historical raid tracking")
+raidSeason = 18
+raidInstance.mapID, raidInstance.name, raidInstance.difficulty = 889, "Raid ancien", 5
+instanceRows = persistedAddon.GetPanelRows(contextSettings)
+assert(#instanceRows == 2 and instanceRows[1].raidSetCurrent and not instanceRows[2].raidSetCurrent, "Both legacy raid sizes marked current")
+raidInstance.name, raidInstance.mapID = "Raid sans set", 9999
+assert(not persistedAddon.GetPanelRows(contextSettings)[1].raidSetID, "Unidentified raid displays unrelated seasonal set")
+raidInstance.kind = "party"
+assert(persistedAddon.GetPanelRows(contextSettings)[1].raidSetID == 5857 and not persistedAddon.GetRaidSetTitle(contextSettings))
+raidInstance.kind, raidInstance.mapID, raidInstance.name, raidInstance.difficulty = "raid", 3004, "Gouffre venimeux", 16
+contextSettings.raidSetsFollowInstance = false
+assert(not persistedAddon.GetRaidSetTitle(contextSettings) and not persistedAddon.GetPanelRows(contextSettings)[4].raidSetCurrent)
+FunelQOLCharDB.layouts[LEM.active].panel1.title = persistedAddon.panelText.panel .. " 1"
+progressEvents.scripts.OnEvent(progressEvents, "ZONE_CHANGED_NEW_AREA")
+assert(first.title.text == string.upper(raidInstance.name) and first.rows[4].data.raidSetCurrent)
+FunelQOLCharDB.layouts[LEM.active].panel1.title = "Mes apparences"
+persistedAddon.RefreshPanels()
+assert(first.title.text == "MES APPARENCES", "Automatic raid context overwrites a custom title")
+SetSetting(first, "raidSetsFollowInstance", false)
+assert(not first.rows[4].data.raidSetCurrent)
+SetSetting(first, "raidSetsFollowInstance", true)
+raidInstance.difficulty = 14
+progressEvents.scripts.OnEvent(progressEvents, "PLAYER_DIFFICULTY_CHANGED")
+assert(first.rows[2].data.raidSetCurrent and not first.rows[4].data.raidSetCurrent)
+raidInstance.kind = "none"
+progressEvents.scripts.OnEvent(progressEvents, "PLAYER_ENTERING_WORLD")
+assert(not first.rows[2].data.raidSetCurrent and first.rows[2].data.raidSetID == 5858)
+print("PASS: automatic current/historical raid sets, localized raid labels and difficulty variants, class/PvP isolation, legacy sizes, cached metadata, current difficulty visibility, season fallback on exit, follow toggle, custom titles and zone/difficulty events.")

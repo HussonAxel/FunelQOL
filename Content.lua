@@ -19,7 +19,7 @@ addon.contentTypes = {
     { text = fr and "Quêtes de gouffres" or "Delve quests", value = "delvequests" },
     { text = fr and "Chambre forte" or "Great Vault", value = "vault" },
     { text = fr and "Renoms · Midnight" or "Renown · Midnight", value = "renown" },
-    { text = fr and "Sets de raid · saison" or "Raid sets · season", value = "raidsets" },
+    { text = fr and "Sets de raid" or "Raid sets", value = "raidsets" },
     { text = fr and "Menu personnalisé" or "Custom menu", value = "custom" },
 }
 

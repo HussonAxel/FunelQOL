@@ -41,6 +41,7 @@ local function Settings(id, layoutName)
         questTracker = true, questEvents = true, questReadable = true, questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
         delvesBountifulOnly = false, delvesSort = "grade", delvesHeight = 400,
         delveQuestsHideCompleted = false,
+        raidSetsFollowInstance = true,
     }
     for key, value in pairs(defaults) do
         if type(settings[key]) ~= type(value) then settings[key] = value end
@@ -355,6 +356,7 @@ local function Render(panel)
         if tracker then title = delves and text.delves or text.trackerTitle
         elseif compact then
             for _, kind in ipairs(addon.contentTypes) do if kind.value == settings.content then title = kind.text; break end end
+            if settings.content == "raidsets" then title = addon.GetRaidSetTitle(settings) or title end
         end
     end
     panel.title:SetText(compactSurface and string.upper(title) or title)
@@ -616,6 +618,7 @@ local function AddSettings(panel)
         { key = "delvesSort", label = text.delvesSort, kind = LEM.SettingType.Dropdown, default = "grade" },
         { key = "delvesHeight", label = text.delvesHeight, kind = LEM.SettingType.Slider, default = 400, min = 150, max = 800, step = 25 },
         { key = "delveQuestsHideCompleted", label = text.delveQuestsHideCompleted, kind = LEM.SettingType.Checkbox, default = false },
+        { key = "raidSetsFollowInstance", label = text.raidSetsFollowInstance, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questReadable", label = text.questReadable, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAuto", label = text.questAuto, kind = LEM.SettingType.Checkbox, default = true },
         { key = "questAll", label = text.questAll, kind = LEM.SettingType.Checkbox, default = true },
@@ -643,6 +646,7 @@ local function AddSettings(panel)
                 local settings = Settings(id, layoutName)
                 if key == "rowCount" then return settings.content ~= "preview" end
                 if key == "delveQuestsHideCompleted" then return settings.content ~= "delvequests" end
+                if key == "raidSetsFollowInstance" then return settings.content ~= "raidsets" end
                 if key == "showBars" then return settings.content ~= "preview" and settings.content ~= "quests" and settings.content ~= "delves" end
                 if key == "delvesBountifulOnly" or key == "delvesSort" or key == "delvesHeight" then return settings.content ~= "delves" end
                 if key == "questTracker" then return settings.content ~= "quests" or not settings.questReadable end
@@ -759,11 +763,12 @@ function addon.InitializePanels()
     end
     events:RegisterEvent("ACHIEVEMENT_EARNED")
     events:RegisterEvent("CRITERIA_UPDATE")
-    for _, event in ipairs({ "TRANSMOG_COLLECTION_UPDATED", "CHALLENGE_MODE_MAPS_UPDATE", "WEEKLY_REWARDS_UPDATE", "WEEKLY_REWARDS_ITEM_CHANGED", "UPDATE_FACTION",
+    for _, event in ipairs({ "PLAYER_DIFFICULTY_CHANGED", "TRANSMOG_COLLECTION_UPDATED", "CHALLENGE_MODE_MAPS_UPDATE", "WEEKLY_REWARDS_UPDATE", "WEEKLY_REWARDS_ITEM_CHANGED", "UPDATE_FACTION",
         "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "MAJOR_FACTION_UNLOCKED", "GET_ITEM_INFO_RECEIVED" }) do events:RegisterEvent(event) end
     local delveEvents = { AREA_POIS_UPDATED = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true,
         ACTIVE_DELVE_DATA_UPDATE = true, UPDATE_ALL_UI_WIDGETS = true, ACHIEVEMENT_EARNED = true, CRITERIA_UPDATE = true }
     events:SetScript("OnEvent", function(_, event, info)
+        if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" or event == "TRANSMOG_COLLECTION_UPDATED" then addon.InvalidateRaidSets() end
         if event == "UPDATE_UI_WIDGET" then
             if not addon.IsDelveWidget(info and info.widgetID) then return end
             addon.InvalidateDelves()
