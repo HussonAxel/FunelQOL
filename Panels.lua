@@ -484,6 +484,7 @@ local function Render(panel)
         local row = panel.rows[index]
         if not row then row = CreateRow(panel); panel.rows[index] = row end
         row.data = entry
+        for _, crest in ipairs(row.crests or {}) do crest.icon:Hide(); crest.count:Hide() end
         row.meta:Hide()
         if row.trackerLine then row.trackerLine:Hide() end
         if row.trackerAccent then row.trackerAccent:Hide() end
@@ -551,8 +552,7 @@ local function Render(panel)
         local valueInset, valueGap = Snap(8, pixel), Snap(8, pixel)
         row.value:ClearAllPoints()
         row.value:SetPoint("RIGHT", -valueInset, 0)
-        local crestIconSize = 20
-        row.value:SetText(entry.crestAmounts and addon.GetCrestText(entry.crestAmounts, crestIconSize) or entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
+        row.value:SetText(entry.crestAmounts and "" or entry.moneyAmount and addon.GetMoneyText(entry.moneyAmount, settings.fontSize) or entry.valueText or "")
         local compactIconSize = Snap(renown and 20 or entry.iconSize or 14, pixel)
         local iconSpace = compact and entry.icon and not entry.moneyAmount and compactIconSize + Snap(6, pixel) or 0
         if renown then row.value:SetPoint("RIGHT", -valueInset - iconSpace, 0) end
@@ -568,17 +568,6 @@ local function Render(panel)
                 if entry.moneyAmount then row.value:SetText(addon.GetMoneyText(entry.moneyAmount, moneyFontSize)) end
                 naturalWidth = row.value:GetUnboundedStringWidth()
             end
-            -- Keep crest artwork independent of text sizing. Only extremely
-            -- narrow rows with large balances need a small icon adjustment.
-            while entry.crestAmounts and naturalWidth > availableWidth and crestIconSize > 16 do
-                crestIconSize = crestIconSize - 2
-                row.value:SetText(addon.GetCrestText(entry.crestAmounts, crestIconSize))
-                naturalWidth = row.value:GetUnboundedStringWidth()
-            end
-            if entry.crestAmounts and naturalWidth > availableWidth then
-                row.value:SetText(addon.GetCrestText(entry.crestAmounts, crestIconSize, true))
-                naturalWidth = row.value:GetUnboundedStringWidth()
-            end
         end
         local valueWidth = math.ceil(math.min((entry.moneyAmount or entry.fitValue) and availableWidth or rowWidth * 0.48, naturalWidth) / pixel) * pixel
         if renown then valueWidth = renownValueWidth end
@@ -590,7 +579,6 @@ local function Render(panel)
         row.label:SetTextColor(labelColor[1], labelColor[2], labelColor[3])
         if compact and not entry.moneyAmount then row.value:SetTextColor(labelColor[1], labelColor[2], labelColor[3]) end
         local actualHeight = entry.wrap and math.max(rowHeight, Snap(row.label:GetStringHeight() + 8, pixel)) or rowHeight
-        if entry.crestAmounts then actualHeight = math.max(actualHeight, Snap(crestIconSize + 4, pixel)) end
         if compact and (entry.iconSize or renown) then actualHeight = math.max(actualHeight, compactIconSize + Snap(4, pixel)) end
         if tracker then
             if entry.isQuestHeader then
@@ -641,6 +629,53 @@ local function Render(panel)
             end
         end
         row:SetHeight(actualHeight)
+        if entry.crestAmounts then
+            -- Inline textures follow the font baseline and can protrude even
+            -- when the row is taller. Anchor real textures to the row instead.
+            row.crests = row.crests or {}
+            local fontSize, iconSize, crestGap = settings.fontSize, 20, 8
+            local function Measure()
+                local total = 0
+                for crestIndex, info in ipairs(entry.crestAmounts) do
+                    local crest = row.crests[crestIndex]
+                    if not crest then
+                        crest = { icon = row.icon:GetParent():CreateTexture(nil, "ARTWORK"), count = row.label:GetParent():CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") }
+                        row.crests[crestIndex] = crest
+                    end
+                    crest.count:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
+                    crest.count:SetText(tostring(info.quantity or 0))
+                    crest.width = math.ceil(crest.count:GetUnboundedStringWidth() / pixel) * pixel
+                    total = total + Snap(iconSize, pixel) + Snap(3, pixel) + crest.width + (crestIndex > 1 and Snap(crestGap, pixel) or 0)
+                end
+                return total
+            end
+            local totalWidth = Measure()
+            while totalWidth > availableWidth and fontSize > 8 do fontSize = fontSize - 1; totalWidth = Measure() end
+            while totalWidth > availableWidth and crestGap > 2 do crestGap = crestGap - 2; totalWidth = Measure() end
+            while totalWidth > availableWidth and iconSize > 16 do iconSize = iconSize - 2; totalWidth = Measure() end
+            local offset = valueInset
+            for crestIndex = #entry.crestAmounts, 1, -1 do
+                local crest, info = row.crests[crestIndex], entry.crestAmounts[crestIndex]
+                crest.count:ClearAllPoints()
+                crest.count:SetPoint("RIGHT", row, "RIGHT", -offset, 0)
+                crest.count:SetWidth(crest.width)
+                crest.count:SetJustifyH("RIGHT")
+                crest.count:Show()
+                offset = offset + crest.width + Snap(3, pixel)
+                crest.icon:SetTexture(info.iconFileID)
+                crest.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                DisableTextureSnapping(crest.icon)
+                crest.icon:SetSize(Snap(iconSize, pixel), Snap(iconSize, pixel))
+                crest.icon:ClearAllPoints()
+                crest.icon:SetPoint("RIGHT", row, "RIGHT", -offset, 0)
+                crest.icon:Show()
+                offset = offset + Snap(iconSize, pixel) + Snap(crestGap, pixel)
+            end
+            row.label:SetWidth(math.max(20, rowWidth - labelStart - valueInset - valueGap - totalWidth))
+            row.value:Hide()
+            row:SetHeight(math.max(actualHeight, Snap(iconSize + 8, pixel)))
+            actualHeight = row:GetHeight()
+        end
         if compact then
             row.icon:ClearAllPoints()
             row.icon:SetSize(compactIconSize, compactIconSize)
