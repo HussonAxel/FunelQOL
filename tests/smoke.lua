@@ -1907,3 +1907,37 @@ C_AddOns={LoadAddOn=function() return false,"FAILED" end}
 assert(not persistedAddon.OpenRenownSummary(1), "Missing Blizzard module not handled")
 C_AddOns=beforeAddOns
 print("PASS: right-click Blizzard renown summary, exact faction, load-on-demand and modern loader fallback, repeated-click open behavior, left-click isolation, combat/Edit Mode guards and unavailable UI handling.")
+
+-- Retail 12.1's View Renown button opens the Adventure Guide Journeys page,
+-- not the old MajorFactionRenownFrame (which is no longer created).
+local oldShowPanel, oldAddOns = ShowUIPanel, C_AddOns
+local journeyFaction, journeyTab, journalLoads=nil,nil,0
+MajorFactionRenownFrame,ToggleMajorFactionRenown,MajorFactions_LoadUI=nil,nil,nil
+local function CreateJournal()
+    EncounterJournal={shown=false,JourneysTab={GetID=function() return 5 end},IsShown=function(self) return self.shown end}
+    EncounterJournalJourneysFrame={ResetView=function(_,view,factionID) assert(view==nil); journeyFaction=factionID end}
+end
+EncounterJournal,EncounterJournalJourneysFrame=nil,nil
+EncounterJournal_LoadUI=function() journalLoads=journalLoads+1; CreateJournal() end
+EJ_ContentTab_Select=function(id) journeyTab=id end
+ShowUIPanel=function(frame) assert(frame==EncounterJournal); frame.shown=true end
+C_AddOns={LoadAddOn=function() return false end}
+first.rows[1].scripts.OnClick(first.rows[1],"RightButton")
+assert(journeyFaction==1 and journeyTab==5 and journalLoads==1 and EncounterJournal.shown, "Retail right click does not open the faction Journeys summary")
+first.rows[2].scripts.OnClick(first.rows[2],"RightButton")
+assert(journeyFaction==2 and journalLoads==1, "Journeys summary does not switch factions")
+first.rows[2].scripts.OnClick(first.rows[2],"RightButton")
+assert(EncounterJournal.shown and journeyFaction==2)
+combat=true
+first.rows[1].scripts.OnClick(first.rows[1],"RightButton")
+assert(journeyFaction==2)
+combat=false
+EncounterJournal,EncounterJournalJourneysFrame,EncounterJournal_LoadUI=nil,nil,nil
+C_AddOns={LoadAddOn=function(name) assert(name=="Blizzard_EncounterJournal"); CreateJournal(); return true end}
+assert(persistedAddon.OpenRenownSummary(3) and journeyFaction==3)
+EncounterJournal,EncounterJournalJourneysFrame=nil,nil
+C_AddOns={LoadAddOn=function() return false end}
+assert(not persistedAddon.OpenRenownSummary(1))
+ShowUIPanel,C_AddOns=oldShowPanel,oldAddOns
+EJ_ContentTab_Select=nil
+print("PASS: Retail Adventure Guide Journeys renown routing, native View Renown path, load-on-demand, exact faction/tab, repeat clicks, combat guard, modern loader fallback and unavailable UI handling.")

@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.14.3 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.14.4 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -264,3 +264,5 @@ The currency editor follows the supplied video: a scrollable two-column list of 
 Version 0.14.1 removes the remaining four-unit lateral row inset from compact trackers. Gauges now span the panel width; labels and icons retain their own padding. Row dividers are opaque one-physical-pixel lines rendered above the progress fill, keeping boundaries visible even on completed rows.
 
 Version 0.14.3 adds right-click on a renown row to open that faction's standard Blizzard renown summary. Blizzard_MajorFactions is loaded if necessary through the native loader or C_AddOns.LoadAddOn, then [ToggleMajorFactionRenown](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_MajorFactions/Blizzard_MajorFactionsLandingTemplates.lua) selects the faction. Repeated right-click leaves an already displayed summary open. Clicks are ignored in combat/Edit Mode, and right-click does not trigger unrelated row actions. Hover text advertises the shortcut. Smoke tests cover faction routing, load-on-demand, loader failure and click guards; actual Blizzard window rendering remains to be checked in game.
+
+Version 0.14.4 fixes renown right-click on Retail 12.1: the native View Renown button now opens the Adventure Guide Journeys tab, not MajorFactionRenownFrame. FunelQOL follows [Blizzard ReputationDetailViewRenownButtonMixin](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/ReputationFrame.lua), loading Blizzard_EncounterJournal, selecting JourneysTab and calling EncounterJournalJourneysFrame:ResetView(nil, factionID). The old window remains a compatibility fallback. A regression reproduces the missing legacy window and checks the exact modern faction/tab routing, repeated clicks, loading and guards. Final window rendering still needs in-game confirmation.

@@ -10,6 +10,22 @@ local midnight = LE_EXPANSION_MIDNIGHT or 11
 
 function addon.OpenRenownSummary(factionID)
     if not factionID or InCombatLockdown() then return false end
+    -- Follow Retail's ReputationDetailViewRenownButtonMixin:OnClick path.
+    -- Modern clients use the Adventure Guide's Journeys tab for renown.
+    if EncounterJournal_LoadUI or EJ_ContentTab_Select or EncounterJournalJourneysFrame then
+        if not EncounterJournal then
+            if EncounterJournal_LoadUI then EncounterJournal_LoadUI()
+            elseif C_AddOns and C_AddOns.LoadAddOn then C_AddOns.LoadAddOn("Blizzard_EncounterJournal") end
+        end
+        local journal, journeys = EncounterJournal, EncounterJournalJourneysFrame
+        if journal and journal.JourneysTab and journeys and journeys.ResetView and EJ_ContentTab_Select then
+            if not journal:IsShown() then ShowUIPanel(journal) end
+            EJ_ContentTab_Select(journal.JourneysTab:GetID())
+            journeys:ResetView(nil, factionID)
+            return true
+        end
+    end
+    -- Compatibility with clients that still provide the old renown window.
     if not MajorFactionRenownFrame then
         if MajorFactions_LoadUI then MajorFactions_LoadUI()
         elseif C_AddOns and C_AddOns.LoadAddOn then C_AddOns.LoadAddOn("Blizzard_MajorFactions") end
