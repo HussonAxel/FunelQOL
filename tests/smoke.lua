@@ -1748,3 +1748,44 @@ C_CurrencyInfo.GetCurrencyInfo = function() return nil end
 assert(persistedAddon.GetPanelRows(crestSettings)[1].valueText == "…", "Unloaded currencies look like zero balances")
 C_CurrencyInfo.GetCurrencyInfo, C_MythicPlus.GetCurrentSeason = originalCurrencyInfo, originalCrestSeason
 print("PASS: grouped Champion/Hero/Myth crests, spendable seasonal IDs, editor choice, earned cap tooltip, live updates, narrow icon bounds and loading/unsupported season handling.")
+function methods:SetColorTexture(...) self.color = {...} end
+local visualSettings = FunelQOLCharDB.layouts[LEM.active].panel1
+visualSettings.backgroundRevision, visualSettings.opacity = nil, 0.94
+SetSetting(first,"content","renown")
+visualSettings.selections.renown = {1,2,3,0,0,0,0,0}
+visualSettings.showBars = true
+factionData[1].renownReputationEarned = 1250
+persistedAddon.RefreshPanels()
+assert(visualSettings.opacity == 0.8 and first.body.background.color[4] == 0.8 and first.header.background.color[4] == 0.8, "Old saved backgrounds did not migrate to 80 percent")
+assert(first.rows[1].bar.shown and first.rows[1].bar.value == 1250 and first.rows[1].bar.maximum == 2500)
+assert(first.rows[1].bar.barColor[4] == 0.3, "Compact gauge obscures text")
+assert(first.rows[2].bar.shown and first.rows[2].bar.value == first.rows[2].bar.maximum, "Max renown lacks full gauge")
+assert(not first.rows[3].bar.shown, "Locked faction shows invented progression")
+visualSettings.opacity = 0.6
+persistedAddon.RefreshPanels()
+assert(first.body.background.color[4] == 0.6, "Opacity migration repeats over user adjustments")
+visualSettings.opacity = 0.8
+for _, style in ipairs({"pixels","ayije","blizzard"}) do
+    SetSetting(first,"style",style)
+    for _, width in ipairs({180,420}) do
+        SetSetting(first,"width",width)
+        assert(first.rows[1].bar.shown and first.rows[1].bar.points[1][1] == "TOPLEFT" and first.rows[1].bar.points[2][1] == "BOTTOMRIGHT")
+    end
+end
+visualSettings.showBars = false
+persistedAddon.RefreshPanels()
+assert(not first.rows[1].bar.shown, "Gauge setting ignored")
+visualSettings.showBars = true
+SetSetting(first,"content","vault")
+for _, row in ipairs(first.rows) do
+    if row.shown and row.data.vaultActivityID then assert(row.bar.shown and row.bar.value <= row.bar.maximum) end
+end
+SetSetting(first,"content","raidsets")
+assert(NormalSet().bar.shown and NormalSet().bar.value == 1 and NormalSet().bar.maximum == 4)
+SetSetting(first,"content","professions")
+assert(first.rows[1].bar.shown and first.rows[1].bar.value == 25 and first.rows[1].bar.maximum == 100)
+SetSetting(first,"content","currencies")
+visualSettings.selections.currencies = {-2,-1,2,0,0,0,0,0}
+persistedAddon.RefreshPanels()
+for _, row in ipairs(first.rows) do if row.shown then assert(not row.bar.shown, "Balance-only currency gains misleading gauge") end end
+print("PASS: one-time 80 percent saved-background migration, subsequent opacity edits, subtle compact renown next-level/max/locked gauges, styles/widths, gauge toggle, vault/raid/profession progress and balance-only exclusions.")

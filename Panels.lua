@@ -44,12 +44,15 @@ local function Settings(id, layoutName)
     if type(layouts[layoutName]) ~= "table" then layouts[layoutName] = {} end
     if type(layouts[layoutName][id]) ~= "table" then layouts[layoutName][id] = {} end
     local settings = layouts[layoutName][id]
+    -- Apply the requested visual refresh once to existing layouts, while
+    -- allowing subsequent opacity adjustments to persist.
+    if settings.backgroundRevision ~= 1 then settings.opacity = 0.8; settings.backgroundRevision = 1 end
     local definition
     for _, entry in ipairs(definitions) do if entry.id == id then definition = entry; break end end
     local defaults = {
         point = "TOPRIGHT", x = definition.x, y = definition.y,
         title = definition.title, width = 260, scale = 1, enabled = true,
-        collapsed = false, style = "blizzard", opacity = 0.94,
+        collapsed = false, style = "blizzard", opacity = 0.8,
         fontSize = 11, rowHeight = 22, rowCount = 3, showBars = true, content = "preview",
         questTracker = true, questEvents = true, questReadable = true, questAuto = true, questAll = true, questHeight = 400, questLimit = 3, questObjectives = true, questDetails = true, questColors = true,
         delvesBountifulOnly = false, delvesSort = "grade", delvesHeight = 400,
@@ -533,15 +536,20 @@ local function Render(panel)
         row.value:SetFont(STANDARD_TEXT_FONT, renown and renownFontSize or settings.fontSize, "OUTLINE")
         row.value:SetTextColor(1, 1, 1)
         row.bar:SetStatusBarTexture(style.fill)
-        row.bar:SetStatusBarColor(0.12, 0.42, 0.62, 0.65)
+        local gaugeMaximum = entry.gaugeMaximum or entry.maximum or 0
+        local gaugeValue = entry.gaugeValue or entry.value or 0
+        local compactGauge = compact and gaugeMaximum > 0 and (entry.gaugeMaximum ~= nil or settings.content == "professions" or settings.content == "raidsets")
+        local gaugeColor = entry.compactColor or entry.labelColor or {0.12, 0.42, 0.62}
+        if compactGauge then row.bar:SetStatusBarColor(gaugeColor[1], gaugeColor[2], gaugeColor[3], 0.3)
+        else row.bar:SetStatusBarColor(0.12, 0.42, 0.62, 0.65) end
         DisableTextureSnapping(row.bar:GetStatusBarTexture())
         local padding = Snap(3, pixel)
         row.bar:ClearAllPoints()
         row.bar:SetPoint("TOPLEFT", padding, -padding)
         row.bar:SetPoint("BOTTOMRIGHT", -padding, padding)
-        row.bar:SetMinMaxValues(0, math.max(1, entry.maximum or 0))
-        row.bar:SetValue(math.min(entry.value or 0, math.max(1, entry.maximum or 0)))
-        row.bar:SetShown(not compact and settings.showBars and (entry.maximum or 0) > 0)
+        row.bar:SetMinMaxValues(0, math.max(1, gaugeMaximum))
+        row.bar:SetValue(math.max(0, math.min(gaugeValue, math.max(1, gaugeMaximum))))
+        row.bar:SetShown(settings.showBars and gaugeMaximum > 0 and (not compact or compactGauge))
         row.icon:SetTexture(entry.icon)
         row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         if entry.iconAtlas then
@@ -770,7 +778,7 @@ local function AddSettings(panel)
         { key = "width", label = text.width, kind = LEM.SettingType.Slider, default = 260, min = 180, max = 420, step = 10 },
         { key = "scale", label = text.scale, kind = LEM.SettingType.Slider, default = 1, min = 0.7, max = 1.5, step = 0.05 },
         { key = "style", label = text.style, kind = LEM.SettingType.Dropdown, default = "blizzard" },
-        { key = "opacity", label = text.opacity, kind = LEM.SettingType.Slider, default = 0.94, min = 0.2, max = 1, step = 0.02 },
+        { key = "opacity", label = text.opacity, kind = LEM.SettingType.Slider, default = 0.8, min = 0.2, max = 1, step = 0.02 },
         { key = "fontSize", label = text.fontSize, kind = LEM.SettingType.Slider, default = 11, min = 10, max = 18, step = 1 },
         { key = "rowHeight", label = text.rowHeight, kind = LEM.SettingType.Slider, default = 22, min = 22, max = 34, step = 1 },
         { key = "rowCount", label = text.rowCount, kind = LEM.SettingType.Slider, default = 3, min = 1, max = 8, step = 1 },

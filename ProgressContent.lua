@@ -74,6 +74,7 @@ function addon.GetVaultRows(settings)
                 rows[#rows + 1] = { name = category.name .. " · " .. activity.index,
                     valueText = unlocked and (level and tostring(level) or "OK") or count,
                     labelColor = unlocked and green or cyan, icon = "Interface\\Icons\\INV_Misc_TreasureChest01",
+                    gaugeValue = math.min(progress, activity.threshold), gaugeMaximum = activity.threshold,
                     vaultActivityID = activity.id, tooltipLines = lines, fitValue = true }
             end
         end
@@ -113,6 +114,8 @@ function addon.GetRenownCatalog()
                 if C_Texture.GetAtlasInfo(candidate) then iconAtlas = candidate end
             end
             rows[#rows + 1] = { id = id, factionID = id, name = info.name, valueText = value, labelColor = color,
+                gaugeValue = info.isUnlocked and (maximum and 1 or math.max(0, math.min(earned, threshold))) or nil,
+                gaugeMaximum = info.isUnlocked and (maximum and 1 or threshold > 0 and threshold or nil) or nil,
                 icon = "Interface\\Icons\\Achievement_Reputation_01", iconAtlas = iconAtlas, iconSize = iconAtlas and 20 or nil,
                 tooltipLines = lines, priority = info.uiPriority or 0, fitValue = true }
         end

@@ -222,6 +222,7 @@ function addon.GetRaidSetRows(settings)
             local collectionText = valueText
             for _, mode in ipairs({ "upgrade", "catalyst", "both" }) do if actionModes[mode] then valueText = valueText .. " " .. addon.GetRaidActionIcon(mode) end end
             rows[#rows + 1] = { name = (current and "» " or "") .. entry.name, raidSetID = setID, raidSetCurrent = current, value = collected, maximum = total,
+                gaugeMaximum = unknown and 0 or total,
                 valueText = valueText, raidCollectionText = collectionText, fitValue = true, raidActionModes = actionModes, raidPreviewSources = previewSources,
                 compactColor = complete and { .3, 1, .3 } or colors[difficulty or 1],
                 icon = complete and "Interface\\RaidFrame\\ReadyCheck-Ready" or 132143, tooltipLines = lines }
