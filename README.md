@@ -1,6 +1,6 @@
 # FunelQOL
 
-A personal quality-of-life addon for World of Warcraft Retail. Version 0.12.5 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
+A personal quality-of-life addon for World of Warcraft Retail. Version 0.12.6 provides two configurable panels with live currencies, professions, selected talents, quest objectives, map events, daily delve stories and ratings, leveling delve quests, Great Vault, renown, raid appearance sets, and custom text rows. LibEditMode is bundled; no separate library addon is required.
 
 ## Installation
 
@@ -246,3 +246,5 @@ Currencies include a selectable grouped Crests row (Champion / Hero / Myth), sho
 Grouped crest icons use 20-unit artwork independent of the text size, with vertical padding. Narrow panels reduce text first, then icons to a minimum of 16 units and tighten spacing if necessary.
 
 Version 0.12.5 renders grouped crest icons as separate textures centered on their row, with four units of vertical padding per side. Quantities use separate measured font strings. This avoids font-baseline overflow from inline artwork; reusable widgets are hidden when a row changes content. Narrow panels tighten group spacing before reducing artwork size.
+
+Panel collapse controls use a custom two-stroke green chevron in a fixed square frame, facing right when closed and down when open, with a white hover state. The artwork is independent of font metrics and replaces the scroll-button texture and text symbols.

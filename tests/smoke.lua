@@ -30,6 +30,7 @@ function methods:GetLeft() return 137.27 + (self.point and self.point[4] or 0) e
 function methods:GetTop() return 531.43 + (self.point and self.point[5] or 0) end
 function methods:GetRegions() end
 function methods:GetParent() return self.parent end
+function methods:SetRotation(rotation) self.rotation = rotation end
 function methods:SetFrameLevel(level) self.level = level end
 function methods:GetFrameLevel() return self.level or 1 end
 function methods:SetShown(shown) self.shown = shown end

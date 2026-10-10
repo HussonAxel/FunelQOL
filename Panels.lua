@@ -450,8 +450,15 @@ local function Render(panel)
     panel.title:SetTextColor(1, (tracker or compact) and 1 or 0.82, (tracker or compact) and 1 or 0)
     panel.editModeName = "FunelQOL · " .. settings.title
     panel.arrow:ClearAllPoints()
-    panel.arrow:SetPoint(compactSurface and "LEFT" or "RIGHT", compactSurface and Snap(5, pixel) or -9, 0)
-    panel.arrow:SetText(compactSurface and ("|TInterface\\Buttons\\UI-ScrollBar-Scroll" .. (settings.collapsed and "Up" or "Down") .. "Button-Up:16:16:0:0|t") or settings.collapsed and "+" or "-")
+    panel.arrow:SetPoint(compactSurface and "LEFT" or "RIGHT", compactSurface and Snap(7, pixel) or -Snap(7, pixel), 0)
+    panel.arrow:SetSize(Snap(16, pixel), Snap(16, pixel))
+    for index, stroke in ipairs(panel.arrow.strokes) do
+        stroke:SetSize(Snap(9, pixel), Snap(2, pixel))
+        stroke:ClearAllPoints()
+        -- Right-facing when collapsed, downward-facing when expanded.
+        stroke:SetPoint("CENTER", panel.arrow, "CENTER", settings.collapsed and 0 or Snap(index == 1 and -3 or 3, pixel), settings.collapsed and Snap(index == 1 and 3 or -3, pixel) or 0)
+        stroke:SetRotation(index == 1 and -math.pi / 4 or math.pi / 4)
+    end
     local data = delves and addon.GetDelveRows(settings) or tracker and addon.GetTrackerRows(settings) or addon.GetPanelRows(settings)
     local renown = settings.content == "renown"
     local renownValueWidth, renownFontSize = 0, settings.fontSize
@@ -864,17 +871,28 @@ function addon.InitializePanels()
         panel.title:SetPoint("CENTER", -8, 0)
         panel.title:SetWordWrap(false)
         panel.title:SetText(definition.title)
-        panel.arrow = panel.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        panel.arrow = CreateFrame("Frame", nil, panel.header)
+        panel.arrow:EnableMouse(false)
         panel.arrow:SetPoint("RIGHT", -9, 0)
-        panel.arrow:SetTextColor(0.25, 0.9, 0.25)
+        panel.arrow.strokes = {}
+        for index = 1, 2 do
+            local stroke = panel.arrow:CreateTexture(nil, "OVERLAY")
+            stroke:SetColorTexture(0.3, 1, 0.3, 1)
+            DisableTextureSnapping(stroke)
+            panel.arrow.strokes[index] = stroke
+        end
         panel.header:SetScript("OnClick", function()
             if editing then return end
             local settings = Settings(definition.id)
             settings.collapsed = not settings.collapsed
             Render(panel)
         end)
-        panel.header:SetScript("OnEnter", function() panel.title:SetTextColor(1, 1, 1) end)
+        panel.header:SetScript("OnEnter", function()
+            panel.title:SetTextColor(1, 1, 1)
+            for _, stroke in ipairs(panel.arrow.strokes) do stroke:SetColorTexture(1, 1, 1, 1) end
+        end)
         panel.header:SetScript("OnLeave", function()
+            for _, stroke in ipairs(panel.arrow.strokes) do stroke:SetColorTexture(0.3, 1, 0.3, 1) end
             local settings = Settings(definition.id)
             local tracker = settings.content == "delves" or settings.content == "quests" and settings.questReadable and settings.questTracker
             local compact = settings.content ~= "preview" and settings.content ~= "quests" and settings.content ~= "delves"
