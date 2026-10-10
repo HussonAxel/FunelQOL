@@ -416,7 +416,7 @@ local function Render(panel)
     local gap = math.ceil((3 + outerInk * 2) / pixel - 0.001) * pixel
     local contentTop = headerHeight + (delves and 0 or gap)
     local rowHeight = Snap(compact and math.max(settings.rowHeight, settings.fontSize + 8) or settings.rowHeight, pixel)
-    local rowInset = compactSurface and Snap(4, pixel) or 0
+    local rowInset = questTracker and Snap(4, pixel) or 0
     local rowWidth = width - rowInset * 2
     panel:SetWidth(width)
     panel.header:SetHeight(headerHeight)
@@ -524,14 +524,15 @@ local function Render(panel)
         SetBackdrop(row, style, settings.opacity, pixel, row.bar:GetFrameLevel(), entry.borderColor)
         row.background:SetShown(not readable and not compact)
         row.border:SetShown(not readable and not compact)
-        if not row.separator then row.separator = row:CreateTexture(nil, "BACKGROUND") end
+        if not row.separator then row.separator = row.label:GetParent():CreateTexture(nil, "ARTWORK") end
         local nextEntry = data[index + 1]
         row.separator:SetShown(compact and nextEntry ~= nil or questTracker and nextEntry and not entry.trackerSection and (nextEntry.isQuestHeader or nextEntry.trackerSection) or false)
         row.separator:ClearAllPoints()
         row.separator:SetPoint("BOTTOMLEFT", 0, 0)
         row.separator:SetPoint("BOTTOMRIGHT", 0, 0)
-        row.separator:SetHeight(pixel)
-        row.separator:SetColorTexture(0.2, 0.2, 0.2, 0.7)
+        row.separator:SetHeight(compact and 2 * pixel or pixel)
+        row.separator:SetColorTexture(compact and 0.35 or 0.2, compact and 0.35 or 0.2, compact and 0.35 or 0.2, compact and 1 or 0.7)
+        DisableTextureSnapping(row.separator)
         row.label:SetFont(addon.media.menuFont, settings.fontSize, "OUTLINE")
         row.value:SetFont(STANDARD_TEXT_FONT, renown and renownFontSize or settings.fontSize, "OUTLINE")
         row.value:SetTextColor(1, 1, 1)

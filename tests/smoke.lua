@@ -960,7 +960,7 @@ for _, style in ipairs({ "pixels", "ayije", "blizzard" }) do
                 assert(not row.border.shown and not row.background.shown and not row.bar.shown)
                 assert(row.separator.shown and not first.rows[3].separator.shown)
                 assert(row.label.text == "TOKEN" and row.label.textColor[1] == 0.64 and row.value.textColor[3] == 0.93)
-                assert(row.icon.shown and row.icon.point[1] == "RIGHT" and row.width < first.width)
+                assert(row.icon.shown and row.icon.point[1] == "RIGHT" and row.width == first.width)
                 local iconLeft = row.width + row.icon.point[4] - row.icon.width
                 assert(row.label.point[2] + row.label.width <= iconLeft, "Compact label overlaps value icon")
                 assert(row.height >= fontSize + 7)
@@ -1775,6 +1775,9 @@ for _, style in ipairs({"pixels","ayije","blizzard"}) do
         SetSetting(first,"width",width)
         assert(first.rows[1].bar.shown and first.rows[1].bar.points[1][1] == "TOPLEFT" and first.rows[1].bar.points[2][1] == "BOTTOMRIGHT")
         assert(first.rows[1].bar.points[1][2] == 0 and first.rows[1].bar.points[1][3] == 0 and first.rows[1].bar.points[2][2] == 0 and first.rows[1].bar.points[2][3] == 0, "Compact gauges retain unnecessary margins")
+        assert(first.rows[1].width == first.width, "Compact rows retain side margins")
+        assert(first.rows[1].separator.parent.level > first.rows[1].bar.level, "Divider lies underneath the gauge")
+        assert(first.rows[1].separator.color[4] == 1, "Divider lacks contrast")
     end
 end
 visualSettings.showBars = false
