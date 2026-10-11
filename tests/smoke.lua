@@ -29,6 +29,8 @@ function hooksecurefunc(frame, method, callback)
     frame[method] = function(self, ...) original(self, ...); callback(self, ...) end
 end
 function methods:StartMoving() self.moving = true end
+function methods:SetMovable(value) self.movable = value end
+function methods:RegisterForDrag(...) self.dragButtons = { ... } end
 function methods:StopMovingOrSizing() self.moving = false end
 function methods:GetEffectiveScale() return (self.scale or 1) * (self.parent and self.parent:GetEffectiveScale() or 1) end
 function methods:GetLeft() return 137.27 + (self.point and self.point[4] or 0) end
@@ -95,6 +97,8 @@ function GetLocale() return "frFR" end
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
 local combat = false
 function InCombatLockdown() return combat end
+function IsShiftKeyDown() return false end
+function IsControlKeyDown() return false end
 EditModeManagerFrame = {}
 local editOpened = false
 function ShowUIPanel(frame) assert(frame == EditModeManagerFrame); editOpened = true end

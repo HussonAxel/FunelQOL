@@ -187,6 +187,95 @@ local function SaveFreePosition(panel, settings, point)
     end
 end
 
+-- Compare rectangles in UIParent units so differently scaled panels snap alike.
+local function PanelRect(panel)
+    local left, top = panel:GetLeft(), panel:GetTop()
+    if not left or not top then return end
+    local scale = panel:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    return left * scale, top * scale, panel:GetWidth() * scale, panel:GetHeight() * scale
+end
+
+local snapSides = { "BOTTOM", "TOP", "LEFT", "RIGHT" }
+local snapAlignments = { "start", "center", "finish" }
+local snapLabels = fr and { BOTTOM = "dessous", TOP = "dessus", LEFT = "à gauche", RIGHT = "à droite" }
+    or { BOTTOM = "below", TOP = "above", LEFT = "left", RIGHT = "right" }
+local function FindAnchor(panel)
+    if InCombatLockdown() then return end
+    local left, top, width, height = PanelRect(panel)
+    if not left then return end
+    local best, distance = nil, 56 * 56
+    local anchors = _G.RefineUI and _G.RefineUI.EditModeAnchors
+    for _, target in ipairs(panels) do
+        if target ~= panel and target:IsVisible() and not dragging[target]
+            and not WouldCycle(panel.definition.id, target.definition.id)
+            and not (anchors and anchors:OwnsPosition(target)) then
+            local x, y, w, h = PanelRect(target)
+            if x then
+                for _, side in ipairs(snapSides) do
+                    for index, align in ipairs(snapAlignments) do
+                        local fraction = (index - 1) / 2
+                        local snapX, snapY
+                        if side == "BOTTOM" or side == "TOP" then
+                            snapX = x + (w - width) * fraction
+                            snapY = side == "BOTTOM" and y - h - 8 or y + height + 8
+                        else
+                            snapX = side == "LEFT" and x - width - 8 or x + w + 8
+                            snapY = y - (h - height) * fraction
+                        end
+                        local dx, dy = left - snapX, top - snapY
+                        local delta = dx * dx + dy * dy
+                        if delta < distance then
+                            best, distance = { target = target, side = side, align = align, x = snapX, y = snapY, width = width, height = height }, delta
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function AutoAnchor(panel, settings)
+    local best = FindAnchor(panel)
+    if best then
+        settings.anchorTarget, settings.anchorSide, settings.anchorAlign = best.target.definition.id, best.side, best.align
+        settings.anchorGap, settings.anchorOffset = 8, 0
+    end
+end
+
+-- A ghost of the final position uses exactly the same candidate as release.
+-- It is independent of the moving frame and never intercepts mouse input.
+local anchorPreview
+local function HideAnchorPreview(panel)
+    if anchorPreview and (not panel or anchorPreview.owner == panel) then
+        anchorPreview:Hide()
+        anchorPreview.owner, anchorPreview.candidate = nil, nil
+    end
+end
+local function UpdateAnchorPreview(panel)
+    local candidate = panel:IsVisible() and FindAnchor(panel)
+    if not candidate then HideAnchorPreview(panel); return end
+    if not anchorPreview then
+        anchorPreview = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        anchorPreview:SetFrameStrata("DIALOG")
+        anchorPreview:EnableMouse(false)
+        anchorPreview:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
+        anchorPreview:SetBackdropColor(0.1, 0.8, 0.3, 0.18)
+        anchorPreview:SetBackdropBorderColor(0.2, 1, 0.4, 1)
+        anchorPreview.label = anchorPreview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        anchorPreview.label:SetPoint("CENTER")
+        anchorPreview.label:SetTextColor(0.3, 1, 0.4)
+        addon.anchorPreview = anchorPreview
+    end
+    anchorPreview.owner, anchorPreview.candidate = panel, candidate
+    anchorPreview:ClearAllPoints()
+    anchorPreview:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", candidate.x, candidate.y)
+    anchorPreview:SetSize(candidate.width, candidate.height)
+    anchorPreview.label:SetWidth(math.max(100, candidate.width - 12))
+    anchorPreview.label:SetText((fr and "Relâchez pour ancrer" or "Release to anchor") .. "\n" .. PanelTitle(Settings(candidate.target.definition.id)) .. " · " .. snapLabels[candidate.side])
+    anchorPreview:Show()
+end
+
 local function PositionPanels()
     local lookup, placed = {}, {}
     local anchors = _G.RefineUI and _G.RefineUI.EditModeAnchors
@@ -1152,6 +1241,11 @@ end
 
 local function ApplyLayout(layoutName)
     addon.CloseContentEditor()
+    -- Finish shortcut drags in their original layout before changing ownership.
+    for _, panel in ipairs(panels) do
+        if panel.shortcutDrag then panel.header:GetScript("OnDragStop")() end
+        panel.autoAnchorPending = nil
+    end
     activeLayout = layoutName or LEM:GetActiveLayoutName() or "Modern"
     for _, panel in ipairs(panels) do
         local settings = Settings(panel.definition.id)
@@ -1335,7 +1429,43 @@ local function CreatePanel(index)
         panel.arrow.strokes[index] = stroke
     end
     panel.header:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    panel.header:RegisterForDrag("LeftButton")
+    panel.header:SetScript("OnMouseDown", function() panel.suppressHeaderClick = nil end)
+    panel.header:SetScript("OnDragStart", function()
+        if not IsShiftKeyDown() or InCombatLockdown() then return end
+        panel.suppressHeaderClick, panel.shortcutDrag = true, true
+        panel:SetMovable(true)
+        panel.header:RegisterEvent("PLAYER_REGEN_DISABLED")
+        panel:StartMoving()
+    end)
+    local function StopShortcutDrag()
+        if not panel.shortcutDrag then return end
+        panel:StopMovingOrSizing()
+        panel.shortcutDrag = nil
+        panel:SetMovable(false)
+        panel.header:UnregisterEvent("PLAYER_REGEN_DISABLED")
+        if panel:IsVisible() then Render(panel) end
+        LEM:RefreshFrameSettings(panel)
+    end
+    panel.header:SetScript("OnDragStop", StopShortcutDrag)
+    panel.header:SetScript("OnEvent", StopShortcutDrag)
+    panel.header:SetScript("OnHide", StopShortcutDrag)
     panel.header:SetScript("OnClick", function(_, button)
+        if panel.suppressHeaderClick or button == "LeftButton" and IsShiftKeyDown() then return end
+        if IsControlKeyDown() then
+            if InCombatLockdown() or panels[definition.index] ~= panel then return end
+            if button == "LeftButton" then
+                addon.AddPanel(panel)
+            elseif button == "RightButton" then
+                if #panels <= 1 then
+                    DEFAULT_CHAT_FRAME:AddMessage(fr and "FunelQOL : au moins un tracker doit rester." or "FunelQOL: at least one tracker must remain.")
+                    return
+                end
+                addon.RemovePanel(definition.index)
+                if LEM.internal and LEM.internal.dialog then LEM.internal.dialog:Hide() end
+            end
+            return
+        end
         if button == "RightButton" then
             local layoutName = activeLayout
             MenuUtil.CreateContextMenu(panel.header, function(_, root)
@@ -1374,15 +1504,33 @@ local function CreatePanel(index)
     hooksecurefunc(panel, "StartMoving", function()
         if InCombatLockdown() then return end
         dragging[panel] = true
+        panel.autoAnchorPending = nil
         local settings = Settings(definition.id)
         SaveFreePosition(panel, settings, settings.point)
         settings.anchorTarget = "screen"
+        local elapsedTime = 0
+        panel:SetScript("OnUpdate", function(_, elapsed)
+            elapsedTime = elapsedTime + elapsed
+            if elapsedTime < 0.03 then return end
+            elapsedTime = 0
+            UpdateAnchorPreview(panel)
+        end)
+        UpdateAnchorPreview(panel)
     end)
     hooksecurefunc(panel, "StopMovingOrSizing", function()
         if not dragging[panel] then return end
+        panel:SetScript("OnUpdate", nil)
+        HideAnchorPreview(panel)
         dragging[panel] = nil
         local settings = Settings(definition.id)
         SaveFreePosition(panel, settings, settings.point)
+        if panel.shortcutDrag then
+            AutoAnchor(panel, settings)
+        else
+            -- LibEditMode normalizes the screen position after stopping the drag.
+            -- Apply the link in its position callback, after that normalization.
+            panel.autoAnchorPending = true
+        end
     end)
     local default = { point = "TOPRIGHT", x = definition.x, y = definition.y }
     LEM:AddFrame(panel, function(_, layoutName, point, x, y)
@@ -1391,6 +1539,10 @@ local function CreatePanel(index)
         settings.anchorTarget = "screen"
         settings.point, settings.x, settings.y = point, x, y
         settings.positionHeight = panel:GetHeight()
+        if panel.autoAnchorPending then
+            panel.autoAnchorPending = nil
+            AutoAnchor(panel, settings)
+        end
         Render(panel)
     end, default)
     AddSettings(panel)
@@ -1406,7 +1558,9 @@ local function CreatePanel(index)
     return panel
 end
 
-function addon.AddPanel()
+function addon.AddPanel(anchorPanel)
+    if InCombatLockdown() then return nil end
+    if anchorPanel and panels[anchorPanel.definition.index] ~= anchorPanel then return nil end
     local index = #panels + 1
     local panel = CreatePanel(index)
     addon.panelDB.panelCount = index
@@ -1414,6 +1568,11 @@ function addon.AddPanel()
     if index > 1 then
         local reference = Settings(panels[1].definition.id)
         for _, key in ipairs(appearanceKeys) do settings[key] = reference[key] end
+    end
+    if anchorPanel then
+        settings.anchorTarget = anchorPanel.definition.id
+        settings.anchorSide, settings.anchorAlign = "RIGHT", "start"
+        settings.anchorGap, settings.anchorOffset = 8, 0
     end
     panel:ClearAllPoints()
     panel:SetPoint(settings.point, UIParent, settings.point, settings.x, settings.y)
